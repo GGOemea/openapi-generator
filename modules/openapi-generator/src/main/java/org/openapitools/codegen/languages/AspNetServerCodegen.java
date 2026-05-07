@@ -37,7 +37,11 @@ import java.net.URL;
 import java.util.*;
 
 import static java.util.UUID.randomUUID;
+import static org.openapitools.codegen.CodegenConstants.X_CSHARP_VALUE_TYPE;
 
+/**
+ * <p>Mustache templates are located in {@code src/main/resources/aspnetcore/}.
+ */
 public class AspNetServerCodegen extends AbstractCSharpCodegen {
 
     public static final String USE_SWASHBUCKLE = "useSwashbuckle";
@@ -347,7 +351,7 @@ public class AspNetServerCodegen extends AbstractCSharpCodegen {
     protected void updateCodegenParameterEnum(CodegenParameter parameter, CodegenModel model) {
         super.updateCodegenParameterEnumLegacy(parameter, model);
 
-        if (!parameter.required && parameter.vendorExtensions.get("x-csharp-value-type") != null) { //optional
+        if (!parameter.required && parameter.vendorExtensions.get(X_CSHARP_VALUE_TYPE) != null) { //optional
             parameter.dataType = parameter.dataType + "?";
         }
     }
@@ -627,7 +631,7 @@ public class AspNetServerCodegen extends AbstractCSharpCodegen {
         super.patchProperty(enumRefs, model, property);
 
         if (!property.isContainer && (this.getNullableTypes().contains(property.dataType) || property.isEnum)) {
-            property.vendorExtensions.put("x-csharp-value-type", true);
+            property.vendorExtensions.put(X_CSHARP_VALUE_TYPE, true);
         }
     }
 
@@ -672,15 +676,8 @@ public class AspNetServerCodegen extends AbstractCSharpCodegen {
     }
 
     private void setClassModifier() {
-        // CHeck for class modifier if not present set the default value.
+        // Check for class modifier if not present set the default value.
         setCliOption(classModifier);
-
-        // If class modifier is abstract then the methods need to be abstract too.
-        if ("abstract".equals(classModifier.getOptValue())) {
-            operationModifier.setOptValue(classModifier.getOptValue());
-            additionalProperties.put(OPERATION_MODIFIER, operationModifier.getOptValue());
-            LOGGER.warn("classModifier is {} so forcing operationModifier to {}", classModifier.getOptValue(), operationModifier.getOptValue());
-        }
     }
 
     private void setOperationModifier() {

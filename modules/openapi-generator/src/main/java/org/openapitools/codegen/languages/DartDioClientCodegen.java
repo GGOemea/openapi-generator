@@ -51,6 +51,9 @@ import java.util.stream.Collectors;
 
 import static org.openapitools.codegen.utils.StringUtils.underscore;
 
+/**
+ * <p>Mustache templates are located in {@code src/main/resources/dart/libraries/dio/}.
+ */
 public class DartDioClientCodegen extends AbstractDartCodegen {
 
     private final Logger LOGGER = LoggerFactory.getLogger(DartDioClientCodegen.class);
@@ -69,7 +72,9 @@ public class DartDioClientCodegen extends AbstractDartCodegen {
 
     private static final String DIO_IMPORT = "package:dio/dio.dart";
     public static final String FINAL_PROPERTIES = "finalProperties";
+    public static final String SKIP_COPY_WITH = "skipCopyWith";
     public static final String FINAL_PROPERTIES_DEFAULT_VALUE = "true";
+    public static final String SKIP_COPY_WITH_DEFAULT_VALUE = "false";
 
     private static final String CLIENT_NAME = "clientName";
 
@@ -138,6 +143,11 @@ public class DartDioClientCodegen extends AbstractDartCodegen {
         final CliOption finalProperties = CliOption.newBoolean(FINAL_PROPERTIES, "Whether properties are marked as final when using Json Serializable for serialization");
         finalProperties.setDefault("true");
         cliOptions.add(finalProperties);
+
+        // skip CopyWith option
+        final CliOption skipCopyWith = CliOption.newBoolean(SKIP_COPY_WITH, "Skip CopyWith when using Json Serializable for serialization");
+        skipCopyWith.setDefault("false");
+        cliOptions.add(skipCopyWith);
     }
 
     @Override
@@ -182,6 +192,13 @@ public class DartDioClientCodegen extends AbstractDartCodegen {
             additionalProperties.put(FINAL_PROPERTIES, Boolean.parseBoolean(additionalProperties.get(FINAL_PROPERTIES).toString()));
         }
 
+        if (!additionalProperties.containsKey(SKIP_COPY_WITH)) {
+            additionalProperties.put(SKIP_COPY_WITH, Boolean.parseBoolean(SKIP_COPY_WITH_DEFAULT_VALUE));
+            LOGGER.debug("skipCopyWith not set, using default {}", SKIP_COPY_WITH_DEFAULT_VALUE);
+        } else {
+            additionalProperties.put(SKIP_COPY_WITH, Boolean.parseBoolean(additionalProperties.get(SKIP_COPY_WITH).toString()));
+        }
+
         if (!additionalProperties.containsKey(CLIENT_NAME)) {
             final String name = org.openapitools.codegen.utils.StringUtils.camelize(pubName);
             additionalProperties.put(CLIENT_NAME, name);
@@ -205,6 +222,10 @@ public class DartDioClientCodegen extends AbstractDartCodegen {
         supportingFiles.add(new SupportingFile("auth/bearer_auth.mustache", authFolder, "bearer_auth.dart"));
         supportingFiles.add(new SupportingFile("auth/oauth.mustache", authFolder, "oauth.dart"));
         supportingFiles.add(new SupportingFile("auth/auth.mustache", authFolder, "auth.dart"));
+
+        if (useOptional) {
+            supportingFiles.add(new SupportingFile("optional.mustache", srcFolder, "optional.dart"));
+        }
 
         configureSerializationLibrary(srcFolder);
         configureEqualityCheckMethod(srcFolder);
@@ -303,7 +324,7 @@ public class DartDioClientCodegen extends AbstractDartCodegen {
                 imports.put("OffsetDate", "package:time_machine/time_machine.dart");
                 imports.put("OffsetDateTime", "package:time_machine/time_machine.dart");
                 if (SERIALIZATION_LIBRARY_BUILT_VALUE.equals(library)) {
-                    supportingFiles.add(new SupportingFile("serialization/built_value/offset_date_serializer.mustache", srcFolder, "local_date_serializer.dart"));
+                    supportingFiles.add(new SupportingFile("serialization/built_value/offset_date_serializer.mustache", srcFolder, "offset_date_serializer.dart"));
                 }
                 break;
             default:
@@ -599,6 +620,18 @@ public class DartDioClientCodegen extends AbstractDartCodegen {
                 CodegenModel cm = mo.getModel();
                 cm.imports = rewriteImports(cm.imports, true);
                 cm.vendorExtensions.put("x-has-vars", !cm.vars.isEmpty());
+
+                // Check if this model's classname has an import mapping.
+                // If so, mark it so that supporting file templates (serializers, barrel)
+                // can use the mapped import path instead of the default model/ path.
+                if (importMapping().containsKey(cm.classname)) {
+                    cm.vendorExtensions.put("x-is-import-mapped", true);
+                    cm.vendorExtensions.put("x-import-path", importMapping().get(cm.classname));
+                } else {
+                    cm.vendorExtensions.put("x-is-import-mapped", false);
+                    cm.vendorExtensions.put("x-import-path",
+                            "package:" + pubName + "/" + sourceFolder + "/" + modelPackage() + "/" + cm.classFilename + ".dart");
+                }
             }
         }
 
@@ -668,6 +701,17 @@ public class DartDioClientCodegen extends AbstractDartCodegen {
                     .noneMatch(response -> response.dataType.equals("Uint8List"))) {
                 // Remove unused imports after processing
                 op.imports.remove("Uint8List");
+            }
+
+            if (SERIALIZATION_LIBRARY_JSON_SERIALIZABLE.equals(library)) {
+                // built_value serialization uses Uint8List for all MultipartFile types
+                // in json_serialization, MultipartFile is used as the file parameter type, but
+                // MultipartFile isn't readable, instead we convert this to a Uin8List
+                if (op.isResponseFile) {
+                    op.imports.add("Uint8List");
+                    op.returnType = "Uint8List";
+                    op.returnBaseType = "Uint8List";
+                }
             }
 
             resultImports.addAll(rewriteImports(op.imports, false));

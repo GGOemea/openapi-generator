@@ -406,6 +406,9 @@ public class CodegenConstants {
     public static final String USE_SINGLE_REQUEST_PARAMETER = "useSingleRequestParameter";
     public static final String USE_SINGLE_REQUEST_PARAMETER_DESC = "Setting this property to true will generate functions with a single argument containing all API endpoint parameters instead of one argument per parameter.";
 
+    public static final String USE_VERTX_5 = "useVertx5";
+    public static final String USE_VERTX_5_DESC = "Setting this property to true will generate Vert.x 5 specific callbacks using Callables.";
+
     public static final String DISALLOW_ADDITIONAL_PROPERTIES_IF_NOT_PRESENT = "disallowAdditionalPropertiesIfNotPresent";
     public static final String DISALLOW_ADDITIONAL_PROPERTIES_IF_NOT_PRESENT_DESC =
             "If false, the 'additionalProperties' implementation (set to true by default) is compliant with the OAS and JSON schema specifications. " +
@@ -416,7 +419,7 @@ public class CodegenConstants {
 
     public static final String ENUM_UNKNOWN_DEFAULT_CASE = "enumUnknownDefaultCase";
     public static final String ENUM_UNKNOWN_DEFAULT_CASE_DESC =
-            "If the server adds new enum cases, that are unknown by an old spec/client, the client will fail to parse the network response." +
+            "If the server adds new enum cases, that are unknown by an old spec/client, the client will fail to parse the network response. " +
                     "With this option enabled, each enum will have a new case, 'unknown_default_open_api', so that when the server sends an enum case that is not known by the client/spec, they can safely fallback to this case.";
 
     public static final String USE_ONEOF_DISCRIMINATOR_LOOKUP = "useOneOfDiscriminatorLookup";
@@ -454,4 +457,39 @@ public class CodegenConstants {
     public static final String WAIT_TIME_OF_THREAD = "waitTimeMillis";
 
     public static final String USE_DEFAULT_VALUES_FOR_REQUIRED_VARS = "useDefaultValuesForRequiredVars";
+
+    public static final String DEFAULT_TO_EMPTY_CONTAINER = "defaultToEmptyContainer";
+    public static final String DEFAULT_TO_EMPTY_CONTAINER_DESC = "Initialize containers (array/set/map) to empty containers instead of null by default. Usage: https://github.com/OpenAPITools/openapi-generator/blob/master/docs/customization.md#default-values";
+
+    // Vendor extensions
+    public static final String X_INTERNAL = "x-internal";
+    public static final String X_PARENT = "x-parent";
+    public static final String X_COMPOSED_DATA_TYPE = "x-composed-data-type";
+    public static final String X_BASE_NAME = "x-base-name";
+    public static final String X_IS_VALUE_TYPE = "x-is-value-type";
+    public static final String X_IS_REFERENCE_TYPE = "x-is-reference-type";
+    public static final String X_IS_NULLABLE_TYPE = "x-is-nullable-type";
+    public static final String X_IS_BASE_OR_NEW_DISCRIMINATOR = "x-is-base-or-new-discriminator";
+    public static final String X_ENUM_BYTE = "x-enum-byte";
+    public static final String X_HTTP_STATUS = "x-http-status";
+    public static final String X_HTTP_STATUSES_WITH_RETURN = "x-http-statuses-with-return";
+    public static final String X_SET_COOKIE = "x-set-cookie";
+    public static final String X_DUPLICATES = "x-duplicates";
+    public static final String X_HTTP_STATUS_IS_DEFAULT = "x-http-status-is-default";
+    public static final String X_ONLY_DEFAULT = "x-only-default";
+    public static final String X_HTTP_STATUS_RANGE = "x-http-status-range";
+    public static final String X_NOT_NULLABLE_REFERENCE_TYPES = "x-not-nullable-reference-types";
+    public static final String X_HAS_NOT_NULLABLE_REFERENCE_TYPES = "x-has-not-nullable-reference-types";
+    public static final String X_NULLABLE_VALUE_TYPE = "x-nullable-value-type";
+    public static final String X_NULLABLE_TYPE = "x-nullable-type";
+    public static final String X_CSHARP_VALUE_TYPE = "x-csharp-value-type";
+    public static final String X_REGEX = "x-regex";
+    public static final String X_MODIFIERS = "x-modifiers";
+    public static final String X_MODIFIER_PREFIX = "x-modifier-";
+    public static final String X_MODEL_IS_MUTABLE = "x-model-is-mutable";
+    public static final String X_IMPLEMENTS = "x-implements";
+    public static final String X_IS_ONE_OF_INTERFACE = "x-is-one-of-interface";
+    public static final String X_DISCRIMINATOR_VALUE = "x-discriminator-value";
+    public static final String X_ONE_OF_NAME = "x-one-of-name";
+    public static final String X_NULLABLE = "x-nullable";
 }

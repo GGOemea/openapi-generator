@@ -183,8 +183,8 @@ public abstract class AbstractRustCodegen extends DefaultCodegen implements Code
                 throw new IllegalArgumentException("Unknown CasingType");
         }
 
-        // Replace hyphens with underscores
-        name = name.replaceAll("-", "_");
+        // Replace hyphens and periods with underscores
+        name = name.replaceAll("[\\.\\-]", "_");
 
         // Apply special character escapes, e.g. "@type" => "At_type"
         // Remove the trailing underscore if necessary
@@ -346,6 +346,10 @@ public abstract class AbstractRustCodegen extends DefaultCodegen implements Code
 
     @Override
     public String toModelName(String name) {
+        if (modelNameMapping.containsKey(name)) {
+            return modelNameMapping.get(name);
+        }
+
         return sanitizeIdentifier(addModelNamePrefixAndSuffix(name), CasingType.CAMEL_CASE, "model", "model", false);
     }
 
@@ -387,8 +391,14 @@ public abstract class AbstractRustCodegen extends DefaultCodegen implements Code
 
     @Override
     public String toEnumValue(String value, String datatype) {
-        // This is the representation of the enum that will be serialized / deserialized
-        // Note: generators currently only support string enums, so checking the type here is pointless
+        if ("integer".equals(datatype) || "number".equals(datatype)
+                || "i8".equals(datatype) || "i16".equals(datatype)
+                || "i32".equals(datatype) || "i64".equals(datatype)
+                || "u8".equals(datatype) || "u16".equals(datatype)
+                || "u32".equals(datatype) || "u64".equals(datatype)
+                || "f32".equals(datatype) || "f64".equals(datatype)) {
+            return value;
+        }
         return escapeText(value);
     }
 

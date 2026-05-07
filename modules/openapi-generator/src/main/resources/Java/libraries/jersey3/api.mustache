@@ -12,8 +12,8 @@ import {{javaxPackage}}.ws.rs.core.GenericType;
 {{/imports}}
 
 {{#useBeanValidation}}
-import jakarta.validation.constraints.*;
-import jakarta.validation.Valid;
+import {{javaxPackage}}.validation.constraints.*;
+import {{javaxPackage}}.validation.Valid;
 
 {{/useBeanValidation}}
 import java.util.ArrayList;
@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 {{>generatedAnnotation}}
+
 {{#operations}}
 public class {{classname}} {
   private ApiClient apiClient;
@@ -194,18 +195,24 @@ public class {{classname}} {
     {{#hasAuthMethods}}
     String[] localVarAuthNames = {{=% %=}}new String[] {%#authMethods%"%name%"%^-last%, %/-last%%/authMethods%};%={{ }}=%
     {{/hasAuthMethods}}
+    final Map<String, GenericType> localVarErrorTypes = new HashMap<String, GenericType>();
+    {{#responses}}
+    {{#dataType}}
+    localVarErrorTypes.put("{{code}}", new GenericType<{{{dataType}}}>() {});
+    {{/dataType}}
+    {{/responses}}
     {{#returnType}}
     GenericType<{{{returnType}}}> localVarReturnType = new GenericType<{{{returnType}}}>() {};
     {{/returnType}}
     return apiClient.invokeAPI("{{classname}}.{{operationId}}", {{#hasPathParams}}localVarPath{{/hasPathParams}}{{^hasPathParams}}"{{{path}}}"{{/hasPathParams}}, "{{httpMethod}}", {{#queryParams}}{{#-first}}localVarQueryParams{{/-first}}{{/queryParams}}{{^queryParams}}new ArrayList<>(){{/queryParams}}, {{#bodyParam}}{{paramName}}{{/bodyParam}}{{^bodyParam}}null{{/bodyParam}},
                                {{#headerParams}}{{#-first}}localVarHeaderParams{{/-first}}{{/headerParams}}{{^headerParams}}new LinkedHashMap<>(){{/headerParams}}, {{#cookieParams}}{{#-first}}localVarCookieParams{{/-first}}{{/cookieParams}}{{^cookieParams}}new LinkedHashMap<>(){{/cookieParams}}, {{#formParams}}{{#-first}}localVarFormParams{{/-first}}{{/formParams}}{{^formParams}}new LinkedHashMap<>(){{/formParams}}, localVarAccept, localVarContentType,
-                               {{#hasAuthMethods}}localVarAuthNames{{/hasAuthMethods}}{{^hasAuthMethods}}null{{/hasAuthMethods}}, {{#returnType}}localVarReturnType{{/returnType}}{{^returnType}}null{{/returnType}}, {{#bodyParam}}{{#isNullable}}true{{/isNullable}}{{^isNullable}}false{{/isNullable}}{{/bodyParam}}{{^bodyParam}}false{{/bodyParam}});
+                               {{#hasAuthMethods}}localVarAuthNames{{/hasAuthMethods}}{{^hasAuthMethods}}null{{/hasAuthMethods}}, {{#returnType}}localVarReturnType{{/returnType}}{{^returnType}}null{{/returnType}}, {{#bodyParam}}{{#isNullable}}true{{/isNullable}}{{^isNullable}}false{{/isNullable}}{{/bodyParam}}{{^bodyParam}}false{{/bodyParam}}, localVarErrorTypes);
   }
   {{#vendorExtensions.x-group-parameters}}
 
   public class API{{operationId}}Request {
     {{#allParams}}
-    {{>nullable_var_annotations}}
+    {{>nullable_var_annotations}}{{! prevent indent}}
     private {{{dataType}}} {{paramName}};
     {{/allParams}}
 

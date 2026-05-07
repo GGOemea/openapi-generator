@@ -28,6 +28,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.testng.Assert.*;
 
@@ -162,7 +164,7 @@ public class TestUtils {
         config.setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_11);
         JavaParser parser = new JavaParser(config);
         ParseResult<CompilationUnit> parseResult = parser.parse(javaSourceCode);
-        assertTrue(parseResult.isSuccessful(), String.valueOf(parseResult.getProblems()));
+        assertTrue(parseResult.isSuccessful(), parseResult.getProblems() + "\n in " + javaSourceCode);
     }
 
     public static void assertFileContains(Path path, String... lines) {
@@ -171,10 +173,25 @@ public class TestUtils {
             String file = linearize(generatedFile);
             assertNotNull(file);
             for (String line : lines)
-                assertTrue(file.contains(linearize(line)), "File does not contain line [" + line + "]");
+                assertTrue(file.contains(linearize(line)), "File '" + path + "' does not contain line [" + line + "]");
         } catch (IOException e) {
             fail("Unable to evaluate file " + path);
         }
+    }
+
+    /**
+     * Count occurrences of the given text
+     * @param content content of the file
+     * @param text text to find
+     * @return
+     */
+    public static int countOccurrences(String content, String text) {
+        Matcher matcher = Pattern.compile(text).matcher(content);
+        int count = 0;
+        while (matcher.find()) {
+            count++;
+        }
+        return count;
     }
 
     public static String linearize(String target) {

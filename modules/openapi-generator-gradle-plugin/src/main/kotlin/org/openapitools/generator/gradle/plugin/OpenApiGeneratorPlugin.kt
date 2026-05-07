@@ -60,7 +60,7 @@ class OpenApiGeneratorPlugin : Plugin<Project> {
                 project
             )
 
-            generate.outputDir.set("$buildDir/generate-resources/main")
+            generate.outputDir.convention(layout.buildDirectory.dir("generate-resources/main"))
 
             tasks.apply {
                 register("openApiGenerators", GeneratorsTask::class.java).configure {
@@ -84,7 +84,9 @@ class OpenApiGeneratorPlugin : Plugin<Project> {
                     description = "Validates an Open API 2.0 or 3.x specification document."
 
                     inputSpec.set(validate.inputSpec)
+                    remoteInputSpec.set(validate.remoteInputSpec)
                     recommend.set(validate.recommend)
+                    treatWarningsAsErrors.set(validate.treatWarningsAsErrors)
                 }
 
                 register("openApiGenerate", GenerateTask::class.java).configure {
@@ -117,6 +119,7 @@ class OpenApiGeneratorPlugin : Plugin<Project> {
                     additionalProperties.set(generate.additionalProperties)
                     serverVariables.set(generate.serverVariables)
                     languageSpecificPrimitives.set(generate.languageSpecificPrimitives)
+                    openapiGeneratorIgnoreList.set(generate.openapiGeneratorIgnoreList)
                     importMappings.set(generate.importMappings)
                     schemaMappings.set(generate.schemaMappings)
                     inlineSchemaNameMappings.set(generate.inlineSchemaNameMappings)
@@ -154,6 +157,8 @@ class OpenApiGeneratorPlugin : Plugin<Project> {
                     engine.set(generate.engine)
                     cleanupOutput.set(generate.cleanupOutput)
                     dryRun.set(generate.dryRun)
+                    workerIsolation.set(generate.workerIsolation)
+                    maxWorkerHeapSize.set(generate.maxWorkerHeapSize)
                 }
             }
         }

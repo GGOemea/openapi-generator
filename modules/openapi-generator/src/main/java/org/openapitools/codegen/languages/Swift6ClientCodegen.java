@@ -46,6 +46,12 @@ import java.util.concurrent.TimeUnit;
 import static org.openapitools.codegen.utils.CamelizeOption.LOWERCASE_FIRST_LETTER;
 import static org.openapitools.codegen.utils.StringUtils.camelize;
 
+/**
+ * <p>Mustache templates are located in
+ * {@code src/main/resources/swift6/} (root templates shared across all libraries) and
+ * {@code src/main/resources/swift6/libraries/} (library-specific overrides).
+ * A library-specific template shadows a root-level template of the same name.
+ */
 public class Swift6ClientCodegen extends DefaultCodegen implements CodegenConfig {
     private final Logger LOGGER = LoggerFactory.getLogger(Swift6ClientCodegen.class);
 
@@ -72,7 +78,7 @@ public class Swift6ClientCodegen extends DefaultCodegen implements CodegenConfig
     public static final String GENERATE_MODEL_ADDITIONAL_PROPERTIES = "generateModelAdditionalProperties";
     public static final String HASHABLE_MODELS = "hashableModels";
     public static final String IDENTIFIABLE_MODELS = "identifiableModels";
-    public static final String USE_JSON_ENCODABLE = "useJsonEncodable";
+    public static final String USE_PARAMETER_CONVERTIBLE = "useParameterConvertible";
     public static final String MAP_FILE_BINARY_TO_DATA = "mapFileBinaryToData";
     public static final String USE_CUSTOM_DATE_WITHOUT_TIME = "useCustomDateWithoutTime";
     public static final String VALIDATABLE = "validatable";
@@ -115,7 +121,7 @@ public class Swift6ClientCodegen extends DefaultCodegen implements CodegenConfig
     @Setter
     protected boolean identifiableModels = true;
     @Setter
-    protected boolean useJsonEncodable = true;
+    protected boolean useParameterConvertible = true;
     @Getter
     @Setter
     protected boolean mapFileBinaryToData = false;
@@ -142,7 +148,7 @@ public class Swift6ClientCodegen extends DefaultCodegen implements CodegenConfig
         this.useOneOfInterfaces = true;
 
         generatorMetadata = GeneratorMetadata.newBuilder(generatorMetadata)
-                .stability(Stability.BETA)
+                .stability(Stability.STABLE)
                 .build();
 
         outputFolder = "generated-code" + File.separator + "swift";
@@ -335,8 +341,8 @@ public class Swift6ClientCodegen extends DefaultCodegen implements CodegenConfig
                 "Make models conform to Identifiable when an id is present (default: true)")
                 .defaultValue(Boolean.TRUE.toString()));
 
-        cliOptions.add(new CliOption(USE_JSON_ENCODABLE,
-                "Make models conform to JSONEncodable protocol (default: true)")
+        cliOptions.add(new CliOption(USE_PARAMETER_CONVERTIBLE,
+                "Make models conform to ParameterConvertible protocol (default: true)")
                 .defaultValue(Boolean.TRUE.toString()));
 
         cliOptions.add(new CliOption(MAP_FILE_BINARY_TO_DATA,
@@ -491,6 +497,9 @@ public class Swift6ClientCodegen extends DefaultCodegen implements CodegenConfig
         additionalProperties.put(RESPONSE_AS, responseAs);
         if (ArrayUtils.contains(responseAs, RESPONSE_LIBRARY_PROMISE_KIT)) {
             additionalProperties.put("usePromiseKit", true);
+            LOGGER.warn("NOTICE: We are considering deprecating PromiseKit support in the Swift 6 generator. " +
+                        "If you are still using it, please share your use case here: " +
+                        "https://github.com/OpenAPITools/openapi-generator/issues/22791");
         }
         if (ArrayUtils.contains(responseAs, RESPONSE_LIBRARY_RX_SWIFT)) {
             additionalProperties.put("useRxSwift", true);
@@ -560,10 +569,10 @@ public class Swift6ClientCodegen extends DefaultCodegen implements CodegenConfig
         }
         additionalProperties.put(IDENTIFIABLE_MODELS, identifiableModels);
 
-        if (additionalProperties.containsKey(USE_JSON_ENCODABLE)) {
-            setUseJsonEncodable(convertPropertyToBooleanAndWriteBack(USE_JSON_ENCODABLE));
+        if (additionalProperties.containsKey(USE_PARAMETER_CONVERTIBLE)) {
+            setUseParameterConvertible(convertPropertyToBooleanAndWriteBack(USE_PARAMETER_CONVERTIBLE));
         }
-        additionalProperties.put(USE_JSON_ENCODABLE, useJsonEncodable);
+        additionalProperties.put(USE_PARAMETER_CONVERTIBLE, useParameterConvertible);
 
         if (additionalProperties.containsKey(MAP_FILE_BINARY_TO_DATA)) {
             setMapFileBinaryToData(convertPropertyToBooleanAndWriteBack(MAP_FILE_BINARY_TO_DATA));
@@ -670,6 +679,9 @@ public class Swift6ClientCodegen extends DefaultCodegen implements CodegenConfig
                     infrastructureFolder,
                     "OpenAPIDateWithoutTime.swift"));
         }
+        supportingFiles.add(new SupportingFile("OpenAPIMutex.mustache",
+                infrastructureFolder,
+                "OpenAPIMutex.swift"));
         supportingFiles.add(new SupportingFile("APIs.mustache",
                 infrastructureFolder,
                 "APIs.swift"));
@@ -741,10 +753,16 @@ public class Swift6ClientCodegen extends DefaultCodegen implements CodegenConfig
             Schema inner = ModelUtils.getSchemaItems(p);
             return ModelUtils.isSet(p) ? "Set<" + getTypeDeclaration(inner) + ">" : "[" + getTypeDeclaration(inner) + "]";
         } else if (ModelUtils.isMapSchema(p)) {
-            Schema inner = ModelUtils.getAdditionalProperties(p);
-            return "[String: " + getTypeDeclaration(inner) + "]";
+            Schema inner = unaliasSchema(ModelUtils.getAdditionalProperties(p));
+            return "[String: " + getItemsTypeDeclaration(inner) + "]";
         }
         return super.getTypeDeclaration(p);
+    }
+
+    private String getItemsTypeDeclaration(Schema items) {
+        String itemsTypeDeclaration = getTypeDeclaration(items);
+        String nullable = items.getNullable() != null && items.getNullable() && !itemsTypeDeclaration.endsWith("?") ? "?" : "";
+        return itemsTypeDeclaration + nullable;
     }
 
     @Override

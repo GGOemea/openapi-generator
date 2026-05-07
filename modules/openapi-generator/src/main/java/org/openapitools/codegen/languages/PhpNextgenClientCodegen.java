@@ -36,6 +36,9 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.util.*;
 
+/**
+ * <p>Mustache templates are located in {@code src/main/resources/php-nextgen/}.
+ */
 public class PhpNextgenClientCodegen extends AbstractPhpCodegen {
     @SuppressWarnings("hiding")
     private final Logger LOGGER = LoggerFactory.getLogger(PhpNextgenClientCodegen.class);
@@ -121,6 +124,7 @@ public class PhpNextgenClientCodegen extends AbstractPhpCodegen {
 
         supportingFiles.add(new SupportingFile("ApiException.mustache", toSrcPath(invokerPackage, srcBasePath), "ApiException.php"));
         supportingFiles.add(new SupportingFile("Configuration.mustache", toSrcPath(invokerPackage, srcBasePath), "Configuration.php"));
+        supportingFiles.add(new SupportingFile("FormDataProcessor.mustache", toSrcPath(invokerPackage, srcBasePath), "FormDataProcessor.php"));
         supportingFiles.add(new SupportingFile("ObjectSerializer.mustache", toSrcPath(invokerPackage, srcBasePath), "ObjectSerializer.php"));
         supportingFiles.add(new SupportingFile("ModelInterface.mustache", toSrcPath(modelPackage, srcBasePath), "ModelInterface.php"));
         supportingFiles.add(new SupportingFile("HeaderSelector.mustache", toSrcPath(invokerPackage, srcBasePath), "HeaderSelector.php"));
@@ -166,16 +170,6 @@ public class PhpNextgenClientCodegen extends AbstractPhpCodegen {
 
                 prop.vendorExtensions.putIfAbsent("x-php-prop-type", propType);
             }
-
-            if (model.isEnum) {
-                for (Map<String, Object> enumVars : (List<Map<String, Object>>) model.getAllowableValues().get("enumVars")) {
-                    if ((Boolean) enumVars.get("isString")) {
-                        model.vendorExtensions.putIfAbsent("x-php-enum-type", "string");
-                    } else {
-                        model.vendorExtensions.putIfAbsent("x-php-enum-type", "int");
-                    }
-                }
-            }
         }
         return objs;
     }
@@ -187,6 +181,7 @@ public class PhpNextgenClientCodegen extends AbstractPhpCodegen {
         for (CodegenOperation operation : operations.getOperation()) {
             Set<String> phpReturnTypeOptions = new LinkedHashSet<>();
             Set<String> docReturnTypeOptions = new LinkedHashSet<>();
+            boolean hasEmptyResponse = false;
 
             for (CodegenResponse response : operation.responses) {
                 if (response.dataType != null) {
@@ -199,15 +194,30 @@ public class PhpNextgenClientCodegen extends AbstractPhpCodegen {
 
                     phpReturnTypeOptions.add(returnType);
                     docReturnTypeOptions.add(response.dataType);
+                } else {
+                    hasEmptyResponse = true;
                 }
             }
 
             if (phpReturnTypeOptions.isEmpty()) {
+                operation.vendorExtensions.putIfAbsent("x-php-return-type-is-void", true);
                 operation.vendorExtensions.putIfAbsent("x-php-return-type", "void");
                 operation.vendorExtensions.putIfAbsent("x-php-doc-return-type", "void");
             } else {
-                operation.vendorExtensions.putIfAbsent("x-php-return-type", String.join("|", phpReturnTypeOptions));
-                operation.vendorExtensions.putIfAbsent("x-php-doc-return-type", String.join("|", docReturnTypeOptions));
+                String phpReturnType = String.join("|", phpReturnTypeOptions);
+                String docReturnType = String.join("|", docReturnTypeOptions);
+                if (hasEmptyResponse) {
+                    if (phpReturnTypeOptions.size() > 1) {
+                        phpReturnType = phpReturnType + "|null";
+                    } else {
+                        phpReturnType = "?" + phpReturnType;
+                    }
+                    docReturnType = docReturnType + "|null";
+                }
+
+                operation.vendorExtensions.putIfAbsent("x-php-return-type-is-void", false);
+                operation.vendorExtensions.putIfAbsent("x-php-return-type", phpReturnType);
+                operation.vendorExtensions.putIfAbsent("x-php-doc-return-type", docReturnType);
             }
 
             for (CodegenParameter param : operation.allParams) {
@@ -234,7 +244,7 @@ public class PhpNextgenClientCodegen extends AbstractPhpCodegen {
             schema = ModelUtils.getReferencedSchema(this.openAPI, schema);
 
             if (schema.getDefault() != null) { // array schema has default value
-                return "[" + schema.getDefault().toString() + "]";
+                return schema.getDefault().toString();
             } else if (schema.getItems().getDefault() != null) { // array item schema has default value
                 return "[" + toDefaultValue(schema.getItems()) + "]";
             } else {

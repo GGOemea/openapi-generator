@@ -36,6 +36,9 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * <p>Mustache templates are located in {@code src/main/resources/scala-akka-http-server/}.
+ */
 public class ScalaAkkaHttpServerCodegen extends AbstractScalaCodegen implements CodegenConfig {
     protected String groupId;
     protected String artifactId;
@@ -51,7 +54,7 @@ public class ScalaAkkaHttpServerCodegen extends AbstractScalaCodegen implements 
     public static final String AKKA_HTTP_VERSION_DESC = "The version of akka-http";
     public static final String PEKKO_HTTP_VERSION = "pekkoHttpVersion";
     public static final String PEKKO_HTTP_VERSION_DESC = "The version of pekko-http";
-    public static final String DEFAULT_AKKA_HTTP_VERSION = "10.1.10";
+    public static final String DEFAULT_AKKA_HTTP_VERSION = "10.2.9";
     public static final String DEFAULT_PEKKO_HTTP_VERSION = "1.1.0";
 
     public static final String GENERATE_AS_MANAGED_SOURCES = "asManagedSources";
@@ -241,6 +244,8 @@ public class ScalaAkkaHttpServerCodegen extends AbstractScalaCodegen implements 
             supportingFiles.add(new SupportingFile("controller.mustache",
                     (sourceFolder + File.separator + invokerPackage).replace(".", java.io.File.separator), "Controller.scala"));
             supportingFiles.add(new SupportingFile("README.mustache", "", "README.md"));
+            supportingFiles.add(new SupportingFile("project/plugins.mustache", "project", "plugins.sbt"));
+            supportingFiles.add(new SupportingFile("scalafmt.mustache", "", ".scalafmt.conf"));
         }
         supportingFiles.add(new SupportingFile("helper.mustache",
                 (sourceFolder + File.separator + invokerPackage).replace(".", java.io.File.separator), "AkkaHttpHelper.scala"));

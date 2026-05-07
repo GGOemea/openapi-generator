@@ -235,9 +235,9 @@ public class InlineModelResolver {
         if (resolveInlineEnums && schema.getEnum() != null && schema.getEnum().size() > 0) {
             return true;
         }
-        if (schema.getType() == null || "object".equals(schema.getType())) {
+        if (schema.getType() == null || ModelUtils.isObjectTypeOAS30(schema)) {
             // object or undeclared type with properties
-            if (schema.getProperties() != null && schema.getProperties().size() > 0) {
+            if (ModelUtils.hasProperties(schema)) {
                 return true;
             }
         }
@@ -263,7 +263,7 @@ public class InlineModelResolver {
                 return isModelNeeded((Schema) schema.getAllOf().get(0), visitedSchemas);
             }
 
-            if (schema.getAllOf() != null && !schema.getAllOf().isEmpty()) {
+            if (ModelUtils.hasAllOf(schema)) {
                 // check to ensure at least one of the allOf item is model
                 for (Object inner : schema.getAllOf()) {
                     if (isModelNeeded(ModelUtils.getReferencedSchema(openAPI, (Schema) inner), visitedSchemas)) {
@@ -274,10 +274,10 @@ public class InlineModelResolver {
                 return false;
             }
 
-            if (schema.getAnyOf() != null && !schema.getAnyOf().isEmpty()) {
+            if (ModelUtils.hasAnyOf(schema)) {
                 return true;
             }
-            if (schema.getOneOf() != null && !schema.getOneOf().isEmpty()) {
+            if (ModelUtils.hasOneOf(schema)) {
                 return true;
             }
         }
@@ -296,9 +296,9 @@ public class InlineModelResolver {
         if (schema.get$ref() != null) {
             // if ref already, no inline schemas should be present but check for
             // any to catch OpenAPI violations
-            if (isModelNeeded(schema) || "object".equals(schema.getType()) ||
+            if (isModelNeeded(schema) || ModelUtils.isObjectTypeOAS30(schema) ||
                     schema.getProperties() != null || schema.getAdditionalProperties() != null ||
-                    ModelUtils.isComposedSchema(schema)) {
+                ModelUtils.isComposedSchema(schema)) {
                 LOGGER.error("Illegal schema found with $ref combined with other properties," +
                         " no properties should be defined alongside a $ref:\n " + schema.toString());
             }
@@ -307,7 +307,7 @@ public class InlineModelResolver {
         // Check object models / any type models / composed models for properties,
         // if the schema has a type defined that is not "object" it should not define
         // any properties
-        if (schema.getType() == null || "object".equals(schema.getType())) {
+        if (schema.getType() == null || ModelUtils.isObjectTypeOAS30(schema)) {
             // Check properties and recurse, each property could be its own inline model
             Map<String, Schema> props = schema.getProperties();
             if (props != null) {
@@ -355,7 +355,9 @@ public class InlineModelResolver {
         } else if (schema.getProperties() != null) {
             // If non-object type is specified but also properties
             LOGGER.error("Illegal schema found with non-object type combined with properties," +
-                    " no properties should be defined:\n " + schema.toString());
+                    " no properties should be defined:" +
+                    " consider using --openapi-normalizer REMOVE_PROPERTIES_FROM_TYPE_OTHER_THAN_OBJECT=true\n " +
+                    schema.toString());
             return;
         } else if (schema.getAdditionalProperties() != null) {
             // If non-object type is specified but also additionalProperties
@@ -637,10 +639,8 @@ public class InlineModelResolver {
         ListIterator<Schema> listIterator = children.listIterator();
         while (listIterator.hasNext()) {
             Schema component = listIterator.next();
-            if ((component != null) &&
-                    (component.get$ref() == null) &&
-                    ((component.getProperties() != null && !component.getProperties().isEmpty()) ||
-                            (component.getEnum() != null && !component.getEnum().isEmpty()))) {
+            boolean componentDoesNotHaveRef = component != null && component.get$ref() == null;
+            if (componentDoesNotHaveRef && (ModelUtils.hasProperties(component) || ModelUtils.hasEnum(component))) {
                 // If a `title` attribute is defined in the inline schema, codegen uses it to name the
                 // inline schema. Otherwise, we'll use the default naming such as InlineObject1, etc.
                 // We know that this is not the best way to name the model.
@@ -694,6 +694,10 @@ public class InlineModelResolver {
             } else if (ModelUtils.isOneOf(model)) { // contains oneOf only
                 gatherInlineModels(model, modelName);
             } else if (ModelUtils.isComposedSchema(model)) {
+                // composed Schema can have properties!
+                if (ModelUtils.hasProperties(model)) {
+                    gatherInlineModels(model, modelName);
+                }
                 // inline child schemas
                 flattenComposedChildren(modelName + "_allOf", model.getAllOf(), !Boolean.TRUE.equals(this.refactorAllOfInlineSchemas));
                 flattenComposedChildren(modelName + "_anyOf", model.getAnyOf(), false);
@@ -836,7 +840,7 @@ public class InlineModelResolver {
                 Schema inner = ModelUtils.getSchemaItems(property);
                 if (ModelUtils.isObjectSchema(inner)) {
                     Schema op = inner;
-                    if (op.getProperties() != null && op.getProperties().size() > 0) {
+                    if (ModelUtils.hasProperties(op)) {
                         flattenProperties(openAPI, op.getProperties(), path);
                         String modelName = resolveModelName(op.getTitle(), path + "_" + key);
                         Schema innerModel = modelFromProperty(openAPI, op, modelName);
@@ -866,7 +870,7 @@ public class InlineModelResolver {
                 Schema inner = ModelUtils.getAdditionalProperties(property);
                 if (ModelUtils.isObjectSchema(inner)) {
                     Schema op = inner;
-                    if (op.getProperties() != null && op.getProperties().size() > 0) {
+                    if (ModelUtils.hasProperties(op)) {
                         flattenProperties(openAPI, op.getProperties(), path);
                         String modelName = resolveModelName(op.getTitle(), path + "_" + key);
                         Schema innerModel = modelFromProperty(openAPI, op, modelName);

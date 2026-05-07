@@ -18,6 +18,7 @@
 package org.openapitools.codegen.languages;
 
 import io.swagger.v3.oas.models.Operation;
+import io.swagger.v3.oas.models.media.Schema;
 import lombok.Getter;
 import lombok.Setter;
 import org.openapitools.codegen.*;
@@ -34,6 +35,9 @@ import java.io.File;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * <p>Mustache templates are located in {@code src/main/resources/JavaJaxRS/cxf/}.
+ */
 public class JavaCXFClientCodegen extends AbstractJavaCodegen
         implements BeanValidationFeatures, UseGenericResponseFeatures, GzipTestFeatures, LoggingTestFeatures {
 
@@ -115,6 +119,20 @@ public class JavaCXFClientCodegen extends AbstractJavaCodegen
         return "jaxrs-cxf-client";
     }
 
+    @Override
+    public List<DocumentationProvider> supportedDocumentationProvider() {
+        return List.of(DocumentationProvider.NONE, DocumentationProvider.SWAGGER1, DocumentationProvider.SWAGGER2);
+    }
+
+    @Override
+    public List<AnnotationLibrary> supportedAnnotationLibraries() {
+        return List.of(AnnotationLibrary.NONE, AnnotationLibrary.SWAGGER1, AnnotationLibrary.SWAGGER2);
+    }
+
+    @Override
+    public DocumentationProvider defaultDocumentationProvider() {
+        return DocumentationProvider.SWAGGER1;
+    }
 
     @Override
     public CodegenType getTag() {
@@ -128,10 +146,18 @@ public class JavaCXFClientCodegen extends AbstractJavaCodegen
     }
 
     @Override
+    public CodegenModel fromModel(String name, Schema model) {
+        CodegenModel m = super.fromModel(name, model);
+        m.imports.remove("ApiModel");
+        return m;
+    }
+
+    @Override
     public void postProcessModelProperty(CodegenModel model, CodegenProperty property) {
         super.postProcessModelProperty(model, property);
         model.imports.remove("ApiModelProperty");
         model.imports.remove("ApiModel");
+        model.imports.remove("JsonTypeName");
 
         if (jackson) {
             //Add jackson imports when model has inner enum

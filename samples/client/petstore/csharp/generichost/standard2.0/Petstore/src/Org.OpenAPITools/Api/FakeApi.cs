@@ -10,7 +10,9 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Net;
+using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using System.Net.Http;
@@ -327,7 +329,7 @@ namespace Org.OpenAPITools.Api
         /// <param name="varString">None (optional)</param>
         /// <param name="cancellationToken">Cancellation Token to cancel the request.</param>
         /// <returns><see cref="Task"/>&lt;<see cref="ITestEndpointParametersApiResponse"/>&gt;</returns>
-        Task<ITestEndpointParametersApiResponse> TestEndpointParametersAsync(decimal number, string patternWithoutDelimiter, byte[] varByte, double varDouble, Option<System.IO.Stream> binary = default, Option<string> callback = default, Option<DateTime> date = default, Option<DateTime> dateTime = default, Option<int> int32 = default, Option<long> int64 = default, Option<int> integer = default, Option<string> password = default, Option<float> varFloat = default, Option<string> varString = default, System.Threading.CancellationToken cancellationToken = default);
+        Task<ITestEndpointParametersApiResponse> TestEndpointParametersAsync(decimal number, string patternWithoutDelimiter, byte[] varByte, double varDouble, Option<Org.OpenAPITools.Client.FileParameter> binary = default, Option<string> callback = default, Option<DateTime> date = default, Option<DateTime> dateTime = default, Option<int> int32 = default, Option<long> int64 = default, Option<int> integer = default, Option<string> password = default, Option<float> varFloat = default, Option<string> varString = default, System.Threading.CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Fake endpoint for testing various parameters 假端點 偽のエンドポイント 가짜 엔드 포인트 
@@ -351,7 +353,7 @@ namespace Org.OpenAPITools.Api
         /// <param name="varString">None (optional)</param>
         /// <param name="cancellationToken">Cancellation Token to cancel the request.</param>
         /// <returns><see cref="Task"/>&lt;<see cref="ITestEndpointParametersApiResponse"/>&gt;</returns>
-        Task<ITestEndpointParametersApiResponse> TestEndpointParametersOrDefaultAsync(decimal number, string patternWithoutDelimiter, byte[] varByte, double varDouble, Option<System.IO.Stream> binary = default, Option<string> callback = default, Option<DateTime> date = default, Option<DateTime> dateTime = default, Option<int> int32 = default, Option<long> int64 = default, Option<int> integer = default, Option<string> password = default, Option<float> varFloat = default, Option<string> varString = default, System.Threading.CancellationToken cancellationToken = default);
+        Task<ITestEndpointParametersApiResponse> TestEndpointParametersOrDefaultAsync(decimal number, string patternWithoutDelimiter, byte[] varByte, double varDouble, Option<Org.OpenAPITools.Client.FileParameter> binary = default, Option<string> callback = default, Option<DateTime> date = default, Option<DateTime> dateTime = default, Option<int> int32 = default, Option<long> int64 = default, Option<int> integer = default, Option<string> password = default, Option<float> varFloat = default, Option<string> varString = default, System.Threading.CancellationToken cancellationToken = default);
 
         /// <summary>
         /// To test enum parameters
@@ -1299,7 +1301,7 @@ namespace Org.OpenAPITools.Api
             bool suppressDefaultLog = false;
             AfterFakeHealthGet(ref suppressDefaultLog, apiResponseLocalVar);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -1366,7 +1368,9 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake/health");
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake/health"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake/health");
 
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
 
@@ -1374,21 +1378,27 @@ namespace Org.OpenAPITools.Api
                         "application/json"
                     };
 
-                    string acceptLocalVar = ClientUtils.SelectHeaderAccept(acceptLocalVars);
+                    IEnumerable<MediaTypeWithQualityHeaderValue> acceptHeaderValuesLocalVar = ClientUtils.SelectHeaderAcceptArray(acceptLocalVars);
 
-                    if (acceptLocalVar != null)
-                        httpRequestMessageLocalVar.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(acceptLocalVar));
+                    foreach (var acceptLocalVar in acceptHeaderValuesLocalVar)
+                        httpRequestMessageLocalVar.Headers.Accept.Add(acceptLocalVar);
                     httpRequestMessageLocalVar.Method = new HttpMethod("GET");
 
                     DateTime requestedAtLocalVar = DateTime.UtcNow;
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<FakeHealthGetApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<FakeHealthGetApiResponse>();
+                        FakeHealthGetApiResponse apiResponseLocalVar;
 
-                        FakeHealthGetApiResponse apiResponseLocalVar = new FakeHealthGetApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/health", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new FakeHealthGetApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/health", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterFakeHealthGetDefaultImplementation(apiResponseLocalVar);
 
@@ -1427,6 +1437,22 @@ namespace Org.OpenAPITools.Api
             /// <param name="requestedAt"></param>
             /// <param name="jsonSerializerOptions"></param>
             public FakeHealthGetApiResponse(ILogger<FakeHealthGetApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="FakeHealthGetApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public FakeHealthGetApiResponse(ILogger<FakeHealthGetApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
             {
                 Logger = logger;
                 OnCreated(httpRequestMessage, httpResponseMessage);
@@ -1495,7 +1521,7 @@ namespace Org.OpenAPITools.Api
             bool suppressDefaultLog = false;
             AfterFakeOuterBooleanSerialize(ref suppressDefaultLog, apiResponseLocalVar, body);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -1569,12 +1595,16 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake/outer/boolean");
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake/outer/boolean"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake/outer/boolean");
 
                     if (body.IsSet)
-                        httpRequestMessageLocalVar.Content = (body.Value as object) is System.IO.Stream stream
-                            ? httpRequestMessageLocalVar.Content = new StreamContent(stream)
-                            : httpRequestMessageLocalVar.Content = new StringContent(JsonSerializer.Serialize(body.Value, _jsonSerializerOptions));
+                    {
+                      httpRequestMessageLocalVar.Content = (body.Value as object) is Org.OpenAPITools.Client.FileParameter fileParameterLocalVar
+                        ? httpRequestMessageLocalVar.Content = new StreamContent(fileParameterLocalVar.Content)
+                        : httpRequestMessageLocalVar.Content = new StringContent(JsonSerializer.Serialize(body.Value, _jsonSerializerOptions));
+                    }
 
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
 
@@ -1591,21 +1621,27 @@ namespace Org.OpenAPITools.Api
                         "*/*"
                     };
 
-                    string acceptLocalVar = ClientUtils.SelectHeaderAccept(acceptLocalVars);
+                    IEnumerable<MediaTypeWithQualityHeaderValue> acceptHeaderValuesLocalVar = ClientUtils.SelectHeaderAcceptArray(acceptLocalVars);
 
-                    if (acceptLocalVar != null)
-                        httpRequestMessageLocalVar.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(acceptLocalVar));
+                    foreach (var acceptLocalVar in acceptHeaderValuesLocalVar)
+                        httpRequestMessageLocalVar.Headers.Accept.Add(acceptLocalVar);
                     httpRequestMessageLocalVar.Method = new HttpMethod("POST");
 
                     DateTime requestedAtLocalVar = DateTime.UtcNow;
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<FakeOuterBooleanSerializeApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<FakeOuterBooleanSerializeApiResponse>();
+                        FakeOuterBooleanSerializeApiResponse apiResponseLocalVar;
 
-                        FakeOuterBooleanSerializeApiResponse apiResponseLocalVar = new FakeOuterBooleanSerializeApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/outer/boolean", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new FakeOuterBooleanSerializeApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/outer/boolean", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterFakeOuterBooleanSerializeDefaultImplementation(apiResponseLocalVar, body);
 
@@ -1644,6 +1680,22 @@ namespace Org.OpenAPITools.Api
             /// <param name="requestedAt"></param>
             /// <param name="jsonSerializerOptions"></param>
             public FakeOuterBooleanSerializeApiResponse(ILogger<FakeOuterBooleanSerializeApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="FakeOuterBooleanSerializeApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public FakeOuterBooleanSerializeApiResponse(ILogger<FakeOuterBooleanSerializeApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
             {
                 Logger = logger;
                 OnCreated(httpRequestMessage, httpResponseMessage);
@@ -1723,7 +1775,7 @@ namespace Org.OpenAPITools.Api
             bool suppressDefaultLog = false;
             AfterFakeOuterCompositeSerialize(ref suppressDefaultLog, apiResponseLocalVar, outerComposite);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -1799,12 +1851,16 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake/outer/composite");
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake/outer/composite"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake/outer/composite");
 
                     if (outerComposite.IsSet)
-                        httpRequestMessageLocalVar.Content = (outerComposite.Value as object) is System.IO.Stream stream
-                            ? httpRequestMessageLocalVar.Content = new StreamContent(stream)
-                            : httpRequestMessageLocalVar.Content = new StringContent(JsonSerializer.Serialize(outerComposite.Value, _jsonSerializerOptions));
+                    {
+                      httpRequestMessageLocalVar.Content = (outerComposite.Value as object) is Org.OpenAPITools.Client.FileParameter fileParameterLocalVar
+                        ? httpRequestMessageLocalVar.Content = new StreamContent(fileParameterLocalVar.Content)
+                        : httpRequestMessageLocalVar.Content = new StringContent(JsonSerializer.Serialize(outerComposite.Value, _jsonSerializerOptions));
+                    }
 
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
 
@@ -1821,21 +1877,27 @@ namespace Org.OpenAPITools.Api
                         "*/*"
                     };
 
-                    string acceptLocalVar = ClientUtils.SelectHeaderAccept(acceptLocalVars);
+                    IEnumerable<MediaTypeWithQualityHeaderValue> acceptHeaderValuesLocalVar = ClientUtils.SelectHeaderAcceptArray(acceptLocalVars);
 
-                    if (acceptLocalVar != null)
-                        httpRequestMessageLocalVar.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(acceptLocalVar));
+                    foreach (var acceptLocalVar in acceptHeaderValuesLocalVar)
+                        httpRequestMessageLocalVar.Headers.Accept.Add(acceptLocalVar);
                     httpRequestMessageLocalVar.Method = new HttpMethod("POST");
 
                     DateTime requestedAtLocalVar = DateTime.UtcNow;
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<FakeOuterCompositeSerializeApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<FakeOuterCompositeSerializeApiResponse>();
+                        FakeOuterCompositeSerializeApiResponse apiResponseLocalVar;
 
-                        FakeOuterCompositeSerializeApiResponse apiResponseLocalVar = new FakeOuterCompositeSerializeApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/outer/composite", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new FakeOuterCompositeSerializeApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/outer/composite", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterFakeOuterCompositeSerializeDefaultImplementation(apiResponseLocalVar, outerComposite);
 
@@ -1874,6 +1936,22 @@ namespace Org.OpenAPITools.Api
             /// <param name="requestedAt"></param>
             /// <param name="jsonSerializerOptions"></param>
             public FakeOuterCompositeSerializeApiResponse(ILogger<FakeOuterCompositeSerializeApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="FakeOuterCompositeSerializeApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public FakeOuterCompositeSerializeApiResponse(ILogger<FakeOuterCompositeSerializeApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
             {
                 Logger = logger;
                 OnCreated(httpRequestMessage, httpResponseMessage);
@@ -1942,7 +2020,7 @@ namespace Org.OpenAPITools.Api
             bool suppressDefaultLog = false;
             AfterFakeOuterNumberSerialize(ref suppressDefaultLog, apiResponseLocalVar, body);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -2016,12 +2094,16 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake/outer/number");
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake/outer/number"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake/outer/number");
 
                     if (body.IsSet)
-                        httpRequestMessageLocalVar.Content = (body.Value as object) is System.IO.Stream stream
-                            ? httpRequestMessageLocalVar.Content = new StreamContent(stream)
-                            : httpRequestMessageLocalVar.Content = new StringContent(JsonSerializer.Serialize(body.Value, _jsonSerializerOptions));
+                    {
+                      httpRequestMessageLocalVar.Content = (body.Value as object) is Org.OpenAPITools.Client.FileParameter fileParameterLocalVar
+                        ? httpRequestMessageLocalVar.Content = new StreamContent(fileParameterLocalVar.Content)
+                        : httpRequestMessageLocalVar.Content = new StringContent(JsonSerializer.Serialize(body.Value, _jsonSerializerOptions));
+                    }
 
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
 
@@ -2038,21 +2120,27 @@ namespace Org.OpenAPITools.Api
                         "*/*"
                     };
 
-                    string acceptLocalVar = ClientUtils.SelectHeaderAccept(acceptLocalVars);
+                    IEnumerable<MediaTypeWithQualityHeaderValue> acceptHeaderValuesLocalVar = ClientUtils.SelectHeaderAcceptArray(acceptLocalVars);
 
-                    if (acceptLocalVar != null)
-                        httpRequestMessageLocalVar.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(acceptLocalVar));
+                    foreach (var acceptLocalVar in acceptHeaderValuesLocalVar)
+                        httpRequestMessageLocalVar.Headers.Accept.Add(acceptLocalVar);
                     httpRequestMessageLocalVar.Method = new HttpMethod("POST");
 
                     DateTime requestedAtLocalVar = DateTime.UtcNow;
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<FakeOuterNumberSerializeApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<FakeOuterNumberSerializeApiResponse>();
+                        FakeOuterNumberSerializeApiResponse apiResponseLocalVar;
 
-                        FakeOuterNumberSerializeApiResponse apiResponseLocalVar = new FakeOuterNumberSerializeApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/outer/number", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new FakeOuterNumberSerializeApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/outer/number", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterFakeOuterNumberSerializeDefaultImplementation(apiResponseLocalVar, body);
 
@@ -2091,6 +2179,22 @@ namespace Org.OpenAPITools.Api
             /// <param name="requestedAt"></param>
             /// <param name="jsonSerializerOptions"></param>
             public FakeOuterNumberSerializeApiResponse(ILogger<FakeOuterNumberSerializeApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="FakeOuterNumberSerializeApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public FakeOuterNumberSerializeApiResponse(ILogger<FakeOuterNumberSerializeApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
             {
                 Logger = logger;
                 OnCreated(httpRequestMessage, httpResponseMessage);
@@ -2171,7 +2275,7 @@ namespace Org.OpenAPITools.Api
             bool suppressDefaultLog = false;
             AfterFakeOuterStringSerialize(ref suppressDefaultLog, apiResponseLocalVar, requiredStringUuid, body);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -2252,7 +2356,9 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake/outer/string");
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake/outer/string"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake/outer/string");
 
                     System.Collections.Specialized.NameValueCollection parseQueryStringLocalVar = System.Web.HttpUtility.ParseQueryString(string.Empty);
 
@@ -2261,9 +2367,11 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Query = parseQueryStringLocalVar.ToString();
 
                     if (body.IsSet)
-                        httpRequestMessageLocalVar.Content = (body.Value as object) is System.IO.Stream stream
-                            ? httpRequestMessageLocalVar.Content = new StreamContent(stream)
-                            : httpRequestMessageLocalVar.Content = new StringContent(JsonSerializer.Serialize(body.Value, _jsonSerializerOptions));
+                    {
+                      httpRequestMessageLocalVar.Content = (body.Value as object) is Org.OpenAPITools.Client.FileParameter fileParameterLocalVar
+                        ? httpRequestMessageLocalVar.Content = new StreamContent(fileParameterLocalVar.Content)
+                        : httpRequestMessageLocalVar.Content = new StringContent(JsonSerializer.Serialize(body.Value, _jsonSerializerOptions));
+                    }
 
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
 
@@ -2280,21 +2388,27 @@ namespace Org.OpenAPITools.Api
                         "*/*"
                     };
 
-                    string acceptLocalVar = ClientUtils.SelectHeaderAccept(acceptLocalVars);
+                    IEnumerable<MediaTypeWithQualityHeaderValue> acceptHeaderValuesLocalVar = ClientUtils.SelectHeaderAcceptArray(acceptLocalVars);
 
-                    if (acceptLocalVar != null)
-                        httpRequestMessageLocalVar.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(acceptLocalVar));
+                    foreach (var acceptLocalVar in acceptHeaderValuesLocalVar)
+                        httpRequestMessageLocalVar.Headers.Accept.Add(acceptLocalVar);
                     httpRequestMessageLocalVar.Method = new HttpMethod("POST");
 
                     DateTime requestedAtLocalVar = DateTime.UtcNow;
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<FakeOuterStringSerializeApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<FakeOuterStringSerializeApiResponse>();
+                        FakeOuterStringSerializeApiResponse apiResponseLocalVar;
 
-                        FakeOuterStringSerializeApiResponse apiResponseLocalVar = new FakeOuterStringSerializeApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/outer/string", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new FakeOuterStringSerializeApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/outer/string", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterFakeOuterStringSerializeDefaultImplementation(apiResponseLocalVar, requiredStringUuid, body);
 
@@ -2333,6 +2447,22 @@ namespace Org.OpenAPITools.Api
             /// <param name="requestedAt"></param>
             /// <param name="jsonSerializerOptions"></param>
             public FakeOuterStringSerializeApiResponse(ILogger<FakeOuterStringSerializeApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="FakeOuterStringSerializeApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public FakeOuterStringSerializeApiResponse(ILogger<FakeOuterStringSerializeApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
             {
                 Logger = logger;
                 OnCreated(httpRequestMessage, httpResponseMessage);
@@ -2398,7 +2528,7 @@ namespace Org.OpenAPITools.Api
             bool suppressDefaultLog = false;
             AfterGetArrayOfEnums(ref suppressDefaultLog, apiResponseLocalVar);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -2465,7 +2595,9 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake/array-of-enums");
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake/array-of-enums"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake/array-of-enums");
 
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
 
@@ -2473,21 +2605,27 @@ namespace Org.OpenAPITools.Api
                         "application/json"
                     };
 
-                    string acceptLocalVar = ClientUtils.SelectHeaderAccept(acceptLocalVars);
+                    IEnumerable<MediaTypeWithQualityHeaderValue> acceptHeaderValuesLocalVar = ClientUtils.SelectHeaderAcceptArray(acceptLocalVars);
 
-                    if (acceptLocalVar != null)
-                        httpRequestMessageLocalVar.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(acceptLocalVar));
+                    foreach (var acceptLocalVar in acceptHeaderValuesLocalVar)
+                        httpRequestMessageLocalVar.Headers.Accept.Add(acceptLocalVar);
                     httpRequestMessageLocalVar.Method = new HttpMethod("GET");
 
                     DateTime requestedAtLocalVar = DateTime.UtcNow;
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<GetArrayOfEnumsApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<GetArrayOfEnumsApiResponse>();
+                        GetArrayOfEnumsApiResponse apiResponseLocalVar;
 
-                        GetArrayOfEnumsApiResponse apiResponseLocalVar = new GetArrayOfEnumsApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/array-of-enums", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new GetArrayOfEnumsApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/array-of-enums", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterGetArrayOfEnumsDefaultImplementation(apiResponseLocalVar);
 
@@ -2526,6 +2664,22 @@ namespace Org.OpenAPITools.Api
             /// <param name="requestedAt"></param>
             /// <param name="jsonSerializerOptions"></param>
             public GetArrayOfEnumsApiResponse(ILogger<GetArrayOfEnumsApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="GetArrayOfEnumsApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public GetArrayOfEnumsApiResponse(ILogger<GetArrayOfEnumsApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
             {
                 Logger = logger;
                 OnCreated(httpRequestMessage, httpResponseMessage);
@@ -2591,7 +2745,7 @@ namespace Org.OpenAPITools.Api
             bool suppressDefaultLog = false;
             AfterGetMixedAnyOf(ref suppressDefaultLog, apiResponseLocalVar);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -2658,7 +2812,9 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake/mixed/anyOf");
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake/mixed/anyOf"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake/mixed/anyOf");
 
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
 
@@ -2666,21 +2822,27 @@ namespace Org.OpenAPITools.Api
                         "application/json"
                     };
 
-                    string acceptLocalVar = ClientUtils.SelectHeaderAccept(acceptLocalVars);
+                    IEnumerable<MediaTypeWithQualityHeaderValue> acceptHeaderValuesLocalVar = ClientUtils.SelectHeaderAcceptArray(acceptLocalVars);
 
-                    if (acceptLocalVar != null)
-                        httpRequestMessageLocalVar.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(acceptLocalVar));
+                    foreach (var acceptLocalVar in acceptHeaderValuesLocalVar)
+                        httpRequestMessageLocalVar.Headers.Accept.Add(acceptLocalVar);
                     httpRequestMessageLocalVar.Method = new HttpMethod("GET");
 
                     DateTime requestedAtLocalVar = DateTime.UtcNow;
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<GetMixedAnyOfApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<GetMixedAnyOfApiResponse>();
+                        GetMixedAnyOfApiResponse apiResponseLocalVar;
 
-                        GetMixedAnyOfApiResponse apiResponseLocalVar = new GetMixedAnyOfApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/mixed/anyOf", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new GetMixedAnyOfApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/mixed/anyOf", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterGetMixedAnyOfDefaultImplementation(apiResponseLocalVar);
 
@@ -2719,6 +2881,22 @@ namespace Org.OpenAPITools.Api
             /// <param name="requestedAt"></param>
             /// <param name="jsonSerializerOptions"></param>
             public GetMixedAnyOfApiResponse(ILogger<GetMixedAnyOfApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="GetMixedAnyOfApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public GetMixedAnyOfApiResponse(ILogger<GetMixedAnyOfApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
             {
                 Logger = logger;
                 OnCreated(httpRequestMessage, httpResponseMessage);
@@ -2784,7 +2962,7 @@ namespace Org.OpenAPITools.Api
             bool suppressDefaultLog = false;
             AfterGetMixedOneOf(ref suppressDefaultLog, apiResponseLocalVar);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -2851,7 +3029,9 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake/mixed/oneOf");
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake/mixed/oneOf"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake/mixed/oneOf");
 
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
 
@@ -2859,21 +3039,27 @@ namespace Org.OpenAPITools.Api
                         "application/json"
                     };
 
-                    string acceptLocalVar = ClientUtils.SelectHeaderAccept(acceptLocalVars);
+                    IEnumerable<MediaTypeWithQualityHeaderValue> acceptHeaderValuesLocalVar = ClientUtils.SelectHeaderAcceptArray(acceptLocalVars);
 
-                    if (acceptLocalVar != null)
-                        httpRequestMessageLocalVar.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(acceptLocalVar));
+                    foreach (var acceptLocalVar in acceptHeaderValuesLocalVar)
+                        httpRequestMessageLocalVar.Headers.Accept.Add(acceptLocalVar);
                     httpRequestMessageLocalVar.Method = new HttpMethod("GET");
 
                     DateTime requestedAtLocalVar = DateTime.UtcNow;
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<GetMixedOneOfApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<GetMixedOneOfApiResponse>();
+                        GetMixedOneOfApiResponse apiResponseLocalVar;
 
-                        GetMixedOneOfApiResponse apiResponseLocalVar = new GetMixedOneOfApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/mixed/oneOf", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new GetMixedOneOfApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/mixed/oneOf", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterGetMixedOneOfDefaultImplementation(apiResponseLocalVar);
 
@@ -2912,6 +3098,22 @@ namespace Org.OpenAPITools.Api
             /// <param name="requestedAt"></param>
             /// <param name="jsonSerializerOptions"></param>
             public GetMixedOneOfApiResponse(ILogger<GetMixedOneOfApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="GetMixedOneOfApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public GetMixedOneOfApiResponse(ILogger<GetMixedOneOfApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
             {
                 Logger = logger;
                 OnCreated(httpRequestMessage, httpResponseMessage);
@@ -2991,7 +3193,7 @@ namespace Org.OpenAPITools.Api
             bool suppressDefaultLog = false;
             AfterTestAdditionalPropertiesReference(ref suppressDefaultLog, apiResponseLocalVar, requestBody);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -3067,10 +3269,12 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake/additionalProperties-reference");
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake/additionalProperties-reference"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake/additionalProperties-reference");
 
-                    httpRequestMessageLocalVar.Content = (requestBody as object) is System.IO.Stream stream
-                        ? httpRequestMessageLocalVar.Content = new StreamContent(stream)
+                    httpRequestMessageLocalVar.Content = (requestBody as object) is Org.OpenAPITools.Client.FileParameter fileParameterLocalVar
+                        ? httpRequestMessageLocalVar.Content = new StreamContent(fileParameterLocalVar.Content)
                         : httpRequestMessageLocalVar.Content = new StringContent(JsonSerializer.Serialize(requestBody, _jsonSerializerOptions));
 
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
@@ -3090,11 +3294,17 @@ namespace Org.OpenAPITools.Api
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<TestAdditionalPropertiesReferenceApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<TestAdditionalPropertiesReferenceApiResponse>();
+                        TestAdditionalPropertiesReferenceApiResponse apiResponseLocalVar;
 
-                        TestAdditionalPropertiesReferenceApiResponse apiResponseLocalVar = new TestAdditionalPropertiesReferenceApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/additionalProperties-reference", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new TestAdditionalPropertiesReferenceApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/additionalProperties-reference", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterTestAdditionalPropertiesReferenceDefaultImplementation(apiResponseLocalVar, requestBody);
 
@@ -3133,6 +3343,22 @@ namespace Org.OpenAPITools.Api
             /// <param name="requestedAt"></param>
             /// <param name="jsonSerializerOptions"></param>
             public TestAdditionalPropertiesReferenceApiResponse(ILogger<TestAdditionalPropertiesReferenceApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="TestAdditionalPropertiesReferenceApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public TestAdditionalPropertiesReferenceApiResponse(ILogger<TestAdditionalPropertiesReferenceApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
             {
                 Logger = logger;
                 OnCreated(httpRequestMessage, httpResponseMessage);
@@ -3180,7 +3406,7 @@ namespace Org.OpenAPITools.Api
             bool suppressDefaultLog = false;
             AfterTestBodyWithFileSchema(ref suppressDefaultLog, apiResponseLocalVar, fileSchemaTestClass);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -3256,10 +3482,12 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake/body-with-file-schema");
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake/body-with-file-schema"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake/body-with-file-schema");
 
-                    httpRequestMessageLocalVar.Content = (fileSchemaTestClass as object) is System.IO.Stream stream
-                        ? httpRequestMessageLocalVar.Content = new StreamContent(stream)
+                    httpRequestMessageLocalVar.Content = (fileSchemaTestClass as object) is Org.OpenAPITools.Client.FileParameter fileParameterLocalVar
+                        ? httpRequestMessageLocalVar.Content = new StreamContent(fileParameterLocalVar.Content)
                         : httpRequestMessageLocalVar.Content = new StringContent(JsonSerializer.Serialize(fileSchemaTestClass, _jsonSerializerOptions));
 
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
@@ -3279,11 +3507,17 @@ namespace Org.OpenAPITools.Api
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<TestBodyWithFileSchemaApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<TestBodyWithFileSchemaApiResponse>();
+                        TestBodyWithFileSchemaApiResponse apiResponseLocalVar;
 
-                        TestBodyWithFileSchemaApiResponse apiResponseLocalVar = new TestBodyWithFileSchemaApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/body-with-file-schema", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new TestBodyWithFileSchemaApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/body-with-file-schema", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterTestBodyWithFileSchemaDefaultImplementation(apiResponseLocalVar, fileSchemaTestClass);
 
@@ -3322,6 +3556,22 @@ namespace Org.OpenAPITools.Api
             /// <param name="requestedAt"></param>
             /// <param name="jsonSerializerOptions"></param>
             public TestBodyWithFileSchemaApiResponse(ILogger<TestBodyWithFileSchemaApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="TestBodyWithFileSchemaApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public TestBodyWithFileSchemaApiResponse(ILogger<TestBodyWithFileSchemaApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
             {
                 Logger = logger;
                 OnCreated(httpRequestMessage, httpResponseMessage);
@@ -3374,7 +3624,7 @@ namespace Org.OpenAPITools.Api
             bool suppressDefaultLog = false;
             AfterTestBodyWithQueryParams(ref suppressDefaultLog, apiResponseLocalVar, query, user);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -3455,7 +3705,9 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake/body-with-query-params");
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake/body-with-query-params"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake/body-with-query-params");
 
                     System.Collections.Specialized.NameValueCollection parseQueryStringLocalVar = System.Web.HttpUtility.ParseQueryString(string.Empty);
 
@@ -3463,8 +3715,8 @@ namespace Org.OpenAPITools.Api
 
                     uriBuilderLocalVar.Query = parseQueryStringLocalVar.ToString();
 
-                    httpRequestMessageLocalVar.Content = (user as object) is System.IO.Stream stream
-                        ? httpRequestMessageLocalVar.Content = new StreamContent(stream)
+                    httpRequestMessageLocalVar.Content = (user as object) is Org.OpenAPITools.Client.FileParameter fileParameterLocalVar
+                        ? httpRequestMessageLocalVar.Content = new StreamContent(fileParameterLocalVar.Content)
                         : httpRequestMessageLocalVar.Content = new StringContent(JsonSerializer.Serialize(user, _jsonSerializerOptions));
 
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
@@ -3484,11 +3736,17 @@ namespace Org.OpenAPITools.Api
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<TestBodyWithQueryParamsApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<TestBodyWithQueryParamsApiResponse>();
+                        TestBodyWithQueryParamsApiResponse apiResponseLocalVar;
 
-                        TestBodyWithQueryParamsApiResponse apiResponseLocalVar = new TestBodyWithQueryParamsApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/body-with-query-params", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new TestBodyWithQueryParamsApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/body-with-query-params", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterTestBodyWithQueryParamsDefaultImplementation(apiResponseLocalVar, query, user);
 
@@ -3527,6 +3785,22 @@ namespace Org.OpenAPITools.Api
             /// <param name="requestedAt"></param>
             /// <param name="jsonSerializerOptions"></param>
             public TestBodyWithQueryParamsApiResponse(ILogger<TestBodyWithQueryParamsApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="TestBodyWithQueryParamsApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public TestBodyWithQueryParamsApiResponse(ILogger<TestBodyWithQueryParamsApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
             {
                 Logger = logger;
                 OnCreated(httpRequestMessage, httpResponseMessage);
@@ -3574,7 +3848,7 @@ namespace Org.OpenAPITools.Api
             bool suppressDefaultLog = false;
             AfterTestClientModel(ref suppressDefaultLog, apiResponseLocalVar, modelClient);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -3650,10 +3924,12 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake");
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake");
 
-                    httpRequestMessageLocalVar.Content = (modelClient as object) is System.IO.Stream stream
-                        ? httpRequestMessageLocalVar.Content = new StreamContent(stream)
+                    httpRequestMessageLocalVar.Content = (modelClient as object) is Org.OpenAPITools.Client.FileParameter fileParameterLocalVar
+                        ? httpRequestMessageLocalVar.Content = new StreamContent(fileParameterLocalVar.Content)
                         : httpRequestMessageLocalVar.Content = new StringContent(JsonSerializer.Serialize(modelClient, _jsonSerializerOptions));
 
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
@@ -3671,21 +3947,27 @@ namespace Org.OpenAPITools.Api
                         "application/json"
                     };
 
-                    string acceptLocalVar = ClientUtils.SelectHeaderAccept(acceptLocalVars);
+                    IEnumerable<MediaTypeWithQualityHeaderValue> acceptHeaderValuesLocalVar = ClientUtils.SelectHeaderAcceptArray(acceptLocalVars);
 
-                    if (acceptLocalVar != null)
-                        httpRequestMessageLocalVar.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(acceptLocalVar));
+                    foreach (var acceptLocalVar in acceptHeaderValuesLocalVar)
+                        httpRequestMessageLocalVar.Headers.Accept.Add(acceptLocalVar);
                     httpRequestMessageLocalVar.Method = new HttpMethod("PATCH");
 
                     DateTime requestedAtLocalVar = DateTime.UtcNow;
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<TestClientModelApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<TestClientModelApiResponse>();
+                        TestClientModelApiResponse apiResponseLocalVar;
 
-                        TestClientModelApiResponse apiResponseLocalVar = new TestClientModelApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new TestClientModelApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterTestClientModelDefaultImplementation(apiResponseLocalVar, modelClient);
 
@@ -3724,6 +4006,22 @@ namespace Org.OpenAPITools.Api
             /// <param name="requestedAt"></param>
             /// <param name="jsonSerializerOptions"></param>
             public TestClientModelApiResponse(ILogger<TestClientModelApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="TestClientModelApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public TestClientModelApiResponse(ILogger<TestClientModelApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
             {
                 Logger = logger;
                 OnCreated(httpRequestMessage, httpResponseMessage);
@@ -3780,7 +4078,7 @@ namespace Org.OpenAPITools.Api
             partial void OnDeserializationError(ref bool suppressDefaultLog, Exception exception, HttpStatusCode httpStatusCode);
         }
 
-        partial void FormatTestEndpointParameters(ref decimal number, ref string patternWithoutDelimiter, ref byte[] varByte, ref double varDouble, ref Option<System.IO.Stream> binary, ref Option<string> callback, ref Option<DateTime> date, ref Option<DateTime> dateTime, ref Option<int> int32, ref Option<long> int64, ref Option<int> integer, ref Option<string> password, ref Option<float> varFloat, ref Option<string> varString);
+        partial void FormatTestEndpointParameters(ref decimal number, ref string patternWithoutDelimiter, ref byte[] varByte, ref double varDouble, ref Option<Org.OpenAPITools.Client.FileParameter> binary, ref Option<string> callback, ref Option<DateTime> date, ref Option<DateTime> dateTime, ref Option<int> int32, ref Option<long> int64, ref Option<int> integer, ref Option<string> password, ref Option<float> varFloat, ref Option<string> varString);
 
         /// <summary>
         /// Validates the request parameters
@@ -3792,7 +4090,7 @@ namespace Org.OpenAPITools.Api
         /// <param name="password"></param>
         /// <param name="varString"></param>
         /// <returns></returns>
-        private void ValidateTestEndpointParameters(string patternWithoutDelimiter, byte[] varByte, Option<System.IO.Stream> binary, Option<string> callback, Option<string> password, Option<string> varString)
+        private void ValidateTestEndpointParameters(string patternWithoutDelimiter, byte[] varByte, Option<Org.OpenAPITools.Client.FileParameter> binary, Option<string> callback, Option<string> password, Option<string> varString)
         {
             if (patternWithoutDelimiter == null)
                 throw new ArgumentNullException(nameof(patternWithoutDelimiter));
@@ -3831,12 +4129,12 @@ namespace Org.OpenAPITools.Api
         /// <param name="password"></param>
         /// <param name="varFloat"></param>
         /// <param name="varString"></param>
-        private void AfterTestEndpointParametersDefaultImplementation(ITestEndpointParametersApiResponse apiResponseLocalVar, decimal number, string patternWithoutDelimiter, byte[] varByte, double varDouble, Option<System.IO.Stream> binary, Option<string> callback, Option<DateTime> date, Option<DateTime> dateTime, Option<int> int32, Option<long> int64, Option<int> integer, Option<string> password, Option<float> varFloat, Option<string> varString)
+        private void AfterTestEndpointParametersDefaultImplementation(ITestEndpointParametersApiResponse apiResponseLocalVar, decimal number, string patternWithoutDelimiter, byte[] varByte, double varDouble, Option<Org.OpenAPITools.Client.FileParameter> binary, Option<string> callback, Option<DateTime> date, Option<DateTime> dateTime, Option<int> int32, Option<long> int64, Option<int> integer, Option<string> password, Option<float> varFloat, Option<string> varString)
         {
             bool suppressDefaultLog = false;
             AfterTestEndpointParameters(ref suppressDefaultLog, apiResponseLocalVar, number, patternWithoutDelimiter, varByte, varDouble, binary, callback, date, dateTime, int32, int64, integer, password, varFloat, varString);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -3858,7 +4156,7 @@ namespace Org.OpenAPITools.Api
         /// <param name="password"></param>
         /// <param name="varFloat"></param>
         /// <param name="varString"></param>
-        partial void AfterTestEndpointParameters(ref bool suppressDefaultLog, ITestEndpointParametersApiResponse apiResponseLocalVar, decimal number, string patternWithoutDelimiter, byte[] varByte, double varDouble, Option<System.IO.Stream> binary, Option<string> callback, Option<DateTime> date, Option<DateTime> dateTime, Option<int> int32, Option<long> int64, Option<int> integer, Option<string> password, Option<float> varFloat, Option<string> varString);
+        partial void AfterTestEndpointParameters(ref bool suppressDefaultLog, ITestEndpointParametersApiResponse apiResponseLocalVar, decimal number, string patternWithoutDelimiter, byte[] varByte, double varDouble, Option<Org.OpenAPITools.Client.FileParameter> binary, Option<string> callback, Option<DateTime> date, Option<DateTime> dateTime, Option<int> int32, Option<long> int64, Option<int> integer, Option<string> password, Option<float> varFloat, Option<string> varString);
 
         /// <summary>
         /// Logs exceptions that occur while retrieving the server response
@@ -3880,7 +4178,7 @@ namespace Org.OpenAPITools.Api
         /// <param name="password"></param>
         /// <param name="varFloat"></param>
         /// <param name="varString"></param>
-        private void OnErrorTestEndpointParametersDefaultImplementation(Exception exceptionLocalVar, string pathFormatLocalVar, string pathLocalVar, decimal number, string patternWithoutDelimiter, byte[] varByte, double varDouble, Option<System.IO.Stream> binary, Option<string> callback, Option<DateTime> date, Option<DateTime> dateTime, Option<int> int32, Option<long> int64, Option<int> integer, Option<string> password, Option<float> varFloat, Option<string> varString)
+        private void OnErrorTestEndpointParametersDefaultImplementation(Exception exceptionLocalVar, string pathFormatLocalVar, string pathLocalVar, decimal number, string patternWithoutDelimiter, byte[] varByte, double varDouble, Option<Org.OpenAPITools.Client.FileParameter> binary, Option<string> callback, Option<DateTime> date, Option<DateTime> dateTime, Option<int> int32, Option<long> int64, Option<int> integer, Option<string> password, Option<float> varFloat, Option<string> varString)
         {
             bool suppressDefaultLogLocalVar = false;
             OnErrorTestEndpointParameters(ref suppressDefaultLogLocalVar, exceptionLocalVar, pathFormatLocalVar, pathLocalVar, number, patternWithoutDelimiter, varByte, varDouble, binary, callback, date, dateTime, int32, int64, integer, password, varFloat, varString);
@@ -3909,7 +4207,7 @@ namespace Org.OpenAPITools.Api
         /// <param name="password"></param>
         /// <param name="varFloat"></param>
         /// <param name="varString"></param>
-        partial void OnErrorTestEndpointParameters(ref bool suppressDefaultLogLocalVar, Exception exceptionLocalVar, string pathFormatLocalVar, string pathLocalVar, decimal number, string patternWithoutDelimiter, byte[] varByte, double varDouble, Option<System.IO.Stream> binary, Option<string> callback, Option<DateTime> date, Option<DateTime> dateTime, Option<int> int32, Option<long> int64, Option<int> integer, Option<string> password, Option<float> varFloat, Option<string> varString);
+        partial void OnErrorTestEndpointParameters(ref bool suppressDefaultLogLocalVar, Exception exceptionLocalVar, string pathFormatLocalVar, string pathLocalVar, decimal number, string patternWithoutDelimiter, byte[] varByte, double varDouble, Option<Org.OpenAPITools.Client.FileParameter> binary, Option<string> callback, Option<DateTime> date, Option<DateTime> dateTime, Option<int> int32, Option<long> int64, Option<int> integer, Option<string> password, Option<float> varFloat, Option<string> varString);
 
         /// <summary>
         /// Fake endpoint for testing various parameters 假端點 偽のエンドポイント 가짜 엔드 포인트  Fake endpoint for testing various parameters 假端點 偽のエンドポイント 가짜 엔드 포인트 
@@ -3930,7 +4228,7 @@ namespace Org.OpenAPITools.Api
         /// <param name="varString">None (optional)</param>
         /// <param name="cancellationToken">Cancellation Token to cancel the request.</param>
         /// <returns><see cref="Task"/>&lt;<see cref="ITestEndpointParametersApiResponse"/>&gt;</returns>
-        public async Task<ITestEndpointParametersApiResponse> TestEndpointParametersOrDefaultAsync(decimal number, string patternWithoutDelimiter, byte[] varByte, double varDouble, Option<System.IO.Stream> binary = default, Option<string> callback = default, Option<DateTime> date = default, Option<DateTime> dateTime = default, Option<int> int32 = default, Option<long> int64 = default, Option<int> integer = default, Option<string> password = default, Option<float> varFloat = default, Option<string> varString = default, System.Threading.CancellationToken cancellationToken = default)
+        public async Task<ITestEndpointParametersApiResponse> TestEndpointParametersOrDefaultAsync(decimal number, string patternWithoutDelimiter, byte[] varByte, double varDouble, Option<Org.OpenAPITools.Client.FileParameter> binary = default, Option<string> callback = default, Option<DateTime> date = default, Option<DateTime> dateTime = default, Option<int> int32 = default, Option<long> int64 = default, Option<int> integer = default, Option<string> password = default, Option<float> varFloat = default, Option<string> varString = default, System.Threading.CancellationToken cancellationToken = default)
         {
             try
             {
@@ -3962,7 +4260,7 @@ namespace Org.OpenAPITools.Api
         /// <param name="varString">None (optional)</param>
         /// <param name="cancellationToken">Cancellation Token to cancel the request.</param>
         /// <returns><see cref="Task"/>&lt;<see cref="ITestEndpointParametersApiResponse"/>&gt;</returns>
-        public async Task<ITestEndpointParametersApiResponse> TestEndpointParametersAsync(decimal number, string patternWithoutDelimiter, byte[] varByte, double varDouble, Option<System.IO.Stream> binary = default, Option<string> callback = default, Option<DateTime> date = default, Option<DateTime> dateTime = default, Option<int> int32 = default, Option<long> int64 = default, Option<int> integer = default, Option<string> password = default, Option<float> varFloat = default, Option<string> varString = default, System.Threading.CancellationToken cancellationToken = default)
+        public async Task<ITestEndpointParametersApiResponse> TestEndpointParametersAsync(decimal number, string patternWithoutDelimiter, byte[] varByte, double varDouble, Option<Org.OpenAPITools.Client.FileParameter> binary = default, Option<string> callback = default, Option<DateTime> date = default, Option<DateTime> dateTime = default, Option<int> int32 = default, Option<long> int64 = default, Option<int> integer = default, Option<string> password = default, Option<float> varFloat = default, Option<string> varString = default, System.Threading.CancellationToken cancellationToken = default)
         {
             UriBuilder uriBuilderLocalVar = new UriBuilder();
 
@@ -3977,15 +4275,11 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake");
-
-                    MultipartContent multipartContentLocalVar = new MultipartContent();
-
-                    httpRequestMessageLocalVar.Content = multipartContentLocalVar;
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake");
 
                     List<KeyValuePair<string, string>> formParameterLocalVars = new List<KeyValuePair<string, string>>();
-
-                    multipartContentLocalVar.Add(new FormUrlEncodedContent(formParameterLocalVars));
 
                     formParameterLocalVars.Add(new KeyValuePair<string, string>("number", ClientUtils.ParameterToString(number)));
 
@@ -3996,7 +4290,7 @@ namespace Org.OpenAPITools.Api
                     formParameterLocalVars.Add(new KeyValuePair<string, string>("double", ClientUtils.ParameterToString(varDouble)));
 
                     if (binary.IsSet)
-                        multipartContentLocalVar.Add(new StreamContent(binary.Value));
+                        throw new NotSupportedException("File parameters cannot be sent with application/x-www-form-urlencoded. Change the operation's content type to multipart/form-data.");
 
                     if (callback.IsSet)
                         formParameterLocalVars.Add(new KeyValuePair<string, string>("callback", ClientUtils.ParameterToString(callback.Value)));
@@ -4025,6 +4319,9 @@ namespace Org.OpenAPITools.Api
                     if (varString.IsSet)
                         formParameterLocalVars.Add(new KeyValuePair<string, string>("string", ClientUtils.ParameterToString(varString.Value)));
 
+                    if (formParameterLocalVars.Count > 0)
+                        httpRequestMessageLocalVar.Content = new FormUrlEncodedContent(formParameterLocalVars);
+
                     List<TokenBase> tokenBaseLocalVars = new List<TokenBase>();
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
 
@@ -4038,22 +4335,23 @@ namespace Org.OpenAPITools.Api
                         "application/x-www-form-urlencoded"
                     };
 
-                    string contentTypeLocalVar = ClientUtils.SelectHeaderContentType(contentTypes);
-
-                    if (contentTypeLocalVar != null && httpRequestMessageLocalVar.Content != null)
-                        httpRequestMessageLocalVar.Content.Headers.ContentType = new MediaTypeHeaderValue(contentTypeLocalVar);
-
                     httpRequestMessageLocalVar.Method = new HttpMethod("POST");
 
                     DateTime requestedAtLocalVar = DateTime.UtcNow;
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<TestEndpointParametersApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<TestEndpointParametersApiResponse>();
+                        TestEndpointParametersApiResponse apiResponseLocalVar;
 
-                        TestEndpointParametersApiResponse apiResponseLocalVar = new TestEndpointParametersApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new TestEndpointParametersApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterTestEndpointParametersDefaultImplementation(apiResponseLocalVar, number, patternWithoutDelimiter, varByte, varDouble, binary, callback, date, dateTime, int32, int64, integer, password, varFloat, varString);
 
@@ -4096,6 +4394,22 @@ namespace Org.OpenAPITools.Api
             /// <param name="requestedAt"></param>
             /// <param name="jsonSerializerOptions"></param>
             public TestEndpointParametersApiResponse(ILogger<TestEndpointParametersApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="TestEndpointParametersApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public TestEndpointParametersApiResponse(ILogger<TestEndpointParametersApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
             {
                 Logger = logger;
                 OnCreated(httpRequestMessage, httpResponseMessage);
@@ -4176,7 +4490,7 @@ namespace Org.OpenAPITools.Api
             bool suppressDefaultLog = false;
             AfterTestEnumParameters(ref suppressDefaultLog, apiResponseLocalVar, enumFormString, enumFormStringArray, enumHeaderString, enumHeaderStringArray, enumQueryDouble, enumQueryInteger, enumQueryString, enumQueryStringArray);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -4287,7 +4601,9 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake");
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake");
 
                     System.Collections.Specialized.NameValueCollection parseQueryStringLocalVar = System.Web.HttpUtility.ParseQueryString(string.Empty);
 
@@ -4305,23 +4621,42 @@ namespace Org.OpenAPITools.Api
 
                     uriBuilderLocalVar.Query = parseQueryStringLocalVar.ToString();
 
-                    if (enumHeaderString.IsSet)
-                        httpRequestMessageLocalVar.Headers.Add("enum_header_string", ClientUtils.ParameterToString(enumHeaderString.Value));
-
-                    if (enumHeaderStringArray.IsSet)
-                        httpRequestMessageLocalVar.Headers.Add("enum_header_string_array", ClientUtils.ParameterToString(enumHeaderStringArray.Value));
-
-                    MultipartContent multipartContentLocalVar = new MultipartContent();
-
-                    httpRequestMessageLocalVar.Content = multipartContentLocalVar;
-
                     List<KeyValuePair<string, string>> formParameterLocalVars = new List<KeyValuePair<string, string>>();
 
-                    multipartContentLocalVar.Add(new FormUrlEncodedContent(formParameterLocalVars));                    if (enumFormString.IsSet)
+                    if (enumFormString.IsSet)
                         formParameterLocalVars.Add(new KeyValuePair<string, string>("enum_form_string", ClientUtils.ParameterToString(enumFormString.Value)));
 
                     if (enumFormStringArray.IsSet)
                         formParameterLocalVars.Add(new KeyValuePair<string, string>("enum_form_string_array", ClientUtils.ParameterToString(enumFormStringArray.Value)));
+
+                    if (formParameterLocalVars.Count > 0)
+                        httpRequestMessageLocalVar.Content = new FormUrlEncodedContent(formParameterLocalVars);
+
+                    if (enumHeaderString.IsSet)
+                    {
+                      // Set client side default value of Header Param "enum_header_string".                    
+                      if (ClientUtils.IsContentHeader("enum_header_string"))
+                      {
+                          httpRequestMessageLocalVar.Content?.Headers.Add("enum_header_string", ClientUtils.ParameterToString(enumHeaderString.Value));
+                      }
+                      else
+                      {
+                          httpRequestMessageLocalVar.Headers.Add("enum_header_string", ClientUtils.ParameterToString(enumHeaderString.Value));
+                      }
+                    }
+
+                    if (enumHeaderStringArray.IsSet)
+                    {
+                      // Set client side default value of Header Param "enum_header_string_array".                    
+                      if (ClientUtils.IsContentHeader("enum_header_string_array"))
+                      {
+                          httpRequestMessageLocalVar.Content?.Headers.Add("enum_header_string_array", ClientUtils.ParameterToString(enumHeaderStringArray.Value));
+                      }
+                      else
+                      {
+                          httpRequestMessageLocalVar.Headers.Add("enum_header_string_array", ClientUtils.ParameterToString(enumHeaderStringArray.Value));
+                      }
+                    }
 
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
 
@@ -4329,22 +4664,23 @@ namespace Org.OpenAPITools.Api
                         "application/x-www-form-urlencoded"
                     };
 
-                    string contentTypeLocalVar = ClientUtils.SelectHeaderContentType(contentTypes);
-
-                    if (contentTypeLocalVar != null && httpRequestMessageLocalVar.Content != null)
-                        httpRequestMessageLocalVar.Content.Headers.ContentType = new MediaTypeHeaderValue(contentTypeLocalVar);
-
                     httpRequestMessageLocalVar.Method = new HttpMethod("GET");
 
                     DateTime requestedAtLocalVar = DateTime.UtcNow;
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<TestEnumParametersApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<TestEnumParametersApiResponse>();
+                        TestEnumParametersApiResponse apiResponseLocalVar;
 
-                        TestEnumParametersApiResponse apiResponseLocalVar = new TestEnumParametersApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new TestEnumParametersApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterTestEnumParametersDefaultImplementation(apiResponseLocalVar, enumFormString, enumFormStringArray, enumHeaderString, enumHeaderStringArray, enumQueryDouble, enumQueryInteger, enumQueryString, enumQueryStringArray);
 
@@ -4383,6 +4719,22 @@ namespace Org.OpenAPITools.Api
             /// <param name="requestedAt"></param>
             /// <param name="jsonSerializerOptions"></param>
             public TestEnumParametersApiResponse(ILogger<TestEnumParametersApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="TestEnumParametersApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public TestEnumParametersApiResponse(ILogger<TestEnumParametersApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
             {
                 Logger = logger;
                 OnCreated(httpRequestMessage, httpResponseMessage);
@@ -4430,7 +4782,7 @@ namespace Org.OpenAPITools.Api
             bool suppressDefaultLog = false;
             AfterTestGroupParameters(ref suppressDefaultLog, apiResponseLocalVar, requiredBooleanGroup, requiredInt64Group, requiredStringGroup, booleanGroup, int64Group, stringGroup);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -4529,7 +4881,9 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake");
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake");
 
                     System.Collections.Specialized.NameValueCollection parseQueryStringLocalVar = System.Web.HttpUtility.ParseQueryString(string.Empty);
 
@@ -4544,10 +4898,28 @@ namespace Org.OpenAPITools.Api
 
                     uriBuilderLocalVar.Query = parseQueryStringLocalVar.ToString();
 
-                    httpRequestMessageLocalVar.Headers.Add("required_boolean_group", ClientUtils.ParameterToString(requiredBooleanGroup));
+                    // Set client side default value of Header Param "required_boolean_group".                    
+                    if (ClientUtils.IsContentHeader("required_boolean_group"))
+                    {
+                        httpRequestMessageLocalVar.Content?.Headers.Add("required_boolean_group", ClientUtils.ParameterToString(requiredBooleanGroup));
+                    }
+                    else
+                    {
+                        httpRequestMessageLocalVar.Headers.Add("required_boolean_group", ClientUtils.ParameterToString(requiredBooleanGroup));
+                    }
 
                     if (booleanGroup.IsSet)
-                        httpRequestMessageLocalVar.Headers.Add("boolean_group", ClientUtils.ParameterToString(booleanGroup.Value));
+                    {
+                      // Set client side default value of Header Param "boolean_group".                    
+                      if (ClientUtils.IsContentHeader("boolean_group"))
+                      {
+                          httpRequestMessageLocalVar.Content?.Headers.Add("boolean_group", ClientUtils.ParameterToString(booleanGroup.Value));
+                      }
+                      else
+                      {
+                          httpRequestMessageLocalVar.Headers.Add("boolean_group", ClientUtils.ParameterToString(booleanGroup.Value));
+                      }
+                    }
 
                     List<TokenBase> tokenBaseLocalVars = new List<TokenBase>();
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
@@ -4563,11 +4935,17 @@ namespace Org.OpenAPITools.Api
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<TestGroupParametersApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<TestGroupParametersApiResponse>();
+                        TestGroupParametersApiResponse apiResponseLocalVar;
 
-                        TestGroupParametersApiResponse apiResponseLocalVar = new TestGroupParametersApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new TestGroupParametersApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterTestGroupParametersDefaultImplementation(apiResponseLocalVar, requiredBooleanGroup, requiredInt64Group, requiredStringGroup, booleanGroup, int64Group, stringGroup);
 
@@ -4615,6 +4993,22 @@ namespace Org.OpenAPITools.Api
                 OnCreated(httpRequestMessage, httpResponseMessage);
             }
 
+            /// <summary>
+            /// The <see cref="TestGroupParametersApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public TestGroupParametersApiResponse(ILogger<TestGroupParametersApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
             partial void OnCreated(global::System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage);
 
             /// <summary>
@@ -4657,7 +5051,7 @@ namespace Org.OpenAPITools.Api
             bool suppressDefaultLog = false;
             AfterTestInlineAdditionalProperties(ref suppressDefaultLog, apiResponseLocalVar, requestBody);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -4733,10 +5127,12 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake/inline-additionalProperties");
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake/inline-additionalProperties"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake/inline-additionalProperties");
 
-                    httpRequestMessageLocalVar.Content = (requestBody as object) is System.IO.Stream stream
-                        ? httpRequestMessageLocalVar.Content = new StreamContent(stream)
+                    httpRequestMessageLocalVar.Content = (requestBody as object) is Org.OpenAPITools.Client.FileParameter fileParameterLocalVar
+                        ? httpRequestMessageLocalVar.Content = new StreamContent(fileParameterLocalVar.Content)
                         : httpRequestMessageLocalVar.Content = new StringContent(JsonSerializer.Serialize(requestBody, _jsonSerializerOptions));
 
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
@@ -4756,11 +5152,17 @@ namespace Org.OpenAPITools.Api
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<TestInlineAdditionalPropertiesApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<TestInlineAdditionalPropertiesApiResponse>();
+                        TestInlineAdditionalPropertiesApiResponse apiResponseLocalVar;
 
-                        TestInlineAdditionalPropertiesApiResponse apiResponseLocalVar = new TestInlineAdditionalPropertiesApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/inline-additionalProperties", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new TestInlineAdditionalPropertiesApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/inline-additionalProperties", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterTestInlineAdditionalPropertiesDefaultImplementation(apiResponseLocalVar, requestBody);
 
@@ -4799,6 +5201,22 @@ namespace Org.OpenAPITools.Api
             /// <param name="requestedAt"></param>
             /// <param name="jsonSerializerOptions"></param>
             public TestInlineAdditionalPropertiesApiResponse(ILogger<TestInlineAdditionalPropertiesApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="TestInlineAdditionalPropertiesApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public TestInlineAdditionalPropertiesApiResponse(ILogger<TestInlineAdditionalPropertiesApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
             {
                 Logger = logger;
                 OnCreated(httpRequestMessage, httpResponseMessage);
@@ -4846,7 +5264,7 @@ namespace Org.OpenAPITools.Api
             bool suppressDefaultLog = false;
             AfterTestInlineFreeformAdditionalProperties(ref suppressDefaultLog, apiResponseLocalVar, testInlineFreeformAdditionalPropertiesRequest);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -4922,10 +5340,12 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake/inline-freeform-additionalProperties");
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake/inline-freeform-additionalProperties"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake/inline-freeform-additionalProperties");
 
-                    httpRequestMessageLocalVar.Content = (testInlineFreeformAdditionalPropertiesRequest as object) is System.IO.Stream stream
-                        ? httpRequestMessageLocalVar.Content = new StreamContent(stream)
+                    httpRequestMessageLocalVar.Content = (testInlineFreeformAdditionalPropertiesRequest as object) is Org.OpenAPITools.Client.FileParameter fileParameterLocalVar
+                        ? httpRequestMessageLocalVar.Content = new StreamContent(fileParameterLocalVar.Content)
                         : httpRequestMessageLocalVar.Content = new StringContent(JsonSerializer.Serialize(testInlineFreeformAdditionalPropertiesRequest, _jsonSerializerOptions));
 
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
@@ -4945,11 +5365,17 @@ namespace Org.OpenAPITools.Api
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<TestInlineFreeformAdditionalPropertiesApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<TestInlineFreeformAdditionalPropertiesApiResponse>();
+                        TestInlineFreeformAdditionalPropertiesApiResponse apiResponseLocalVar;
 
-                        TestInlineFreeformAdditionalPropertiesApiResponse apiResponseLocalVar = new TestInlineFreeformAdditionalPropertiesApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/inline-freeform-additionalProperties", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new TestInlineFreeformAdditionalPropertiesApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/inline-freeform-additionalProperties", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterTestInlineFreeformAdditionalPropertiesDefaultImplementation(apiResponseLocalVar, testInlineFreeformAdditionalPropertiesRequest);
 
@@ -4988,6 +5414,22 @@ namespace Org.OpenAPITools.Api
             /// <param name="requestedAt"></param>
             /// <param name="jsonSerializerOptions"></param>
             public TestInlineFreeformAdditionalPropertiesApiResponse(ILogger<TestInlineFreeformAdditionalPropertiesApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="TestInlineFreeformAdditionalPropertiesApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public TestInlineFreeformAdditionalPropertiesApiResponse(ILogger<TestInlineFreeformAdditionalPropertiesApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
             {
                 Logger = logger;
                 OnCreated(httpRequestMessage, httpResponseMessage);
@@ -5040,7 +5482,7 @@ namespace Org.OpenAPITools.Api
             bool suppressDefaultLog = false;
             AfterTestJsonFormData(ref suppressDefaultLog, apiResponseLocalVar, param, param2);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -5121,19 +5563,18 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake/jsonFormData");
-
-                    MultipartContent multipartContentLocalVar = new MultipartContent();
-
-                    httpRequestMessageLocalVar.Content = multipartContentLocalVar;
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake/jsonFormData"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake/jsonFormData");
 
                     List<KeyValuePair<string, string>> formParameterLocalVars = new List<KeyValuePair<string, string>>();
-
-                    multipartContentLocalVar.Add(new FormUrlEncodedContent(formParameterLocalVars));
 
                     formParameterLocalVars.Add(new KeyValuePair<string, string>("param", ClientUtils.ParameterToString(param)));
 
                     formParameterLocalVars.Add(new KeyValuePair<string, string>("param2", ClientUtils.ParameterToString(param2)));
+
+                    if (formParameterLocalVars.Count > 0)
+                        httpRequestMessageLocalVar.Content = new FormUrlEncodedContent(formParameterLocalVars);
 
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
 
@@ -5141,22 +5582,23 @@ namespace Org.OpenAPITools.Api
                         "application/x-www-form-urlencoded"
                     };
 
-                    string contentTypeLocalVar = ClientUtils.SelectHeaderContentType(contentTypes);
-
-                    if (contentTypeLocalVar != null && httpRequestMessageLocalVar.Content != null)
-                        httpRequestMessageLocalVar.Content.Headers.ContentType = new MediaTypeHeaderValue(contentTypeLocalVar);
-
                     httpRequestMessageLocalVar.Method = new HttpMethod("GET");
 
                     DateTime requestedAtLocalVar = DateTime.UtcNow;
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<TestJsonFormDataApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<TestJsonFormDataApiResponse>();
+                        TestJsonFormDataApiResponse apiResponseLocalVar;
 
-                        TestJsonFormDataApiResponse apiResponseLocalVar = new TestJsonFormDataApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/jsonFormData", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new TestJsonFormDataApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/jsonFormData", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterTestJsonFormDataDefaultImplementation(apiResponseLocalVar, param, param2);
 
@@ -5195,6 +5637,22 @@ namespace Org.OpenAPITools.Api
             /// <param name="requestedAt"></param>
             /// <param name="jsonSerializerOptions"></param>
             public TestJsonFormDataApiResponse(ILogger<TestJsonFormDataApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="TestJsonFormDataApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public TestJsonFormDataApiResponse(ILogger<TestJsonFormDataApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
             {
                 Logger = logger;
                 OnCreated(httpRequestMessage, httpResponseMessage);
@@ -5274,7 +5732,7 @@ namespace Org.OpenAPITools.Api
             bool suppressDefaultLog = false;
             AfterTestQueryParameterCollectionFormat(ref suppressDefaultLog, apiResponseLocalVar, context, http, ioutil, pipe, requiredNotNullable, url, notRequiredNotNullable, notRequiredNullable, requiredNullable);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -5390,7 +5848,9 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake/test-query-parameters");
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake/test-query-parameters"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake/test-query-parameters");
 
                     System.Collections.Specialized.NameValueCollection parseQueryStringLocalVar = System.Web.HttpUtility.ParseQueryString(string.Empty);
 
@@ -5417,11 +5877,17 @@ namespace Org.OpenAPITools.Api
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<TestQueryParameterCollectionFormatApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<TestQueryParameterCollectionFormatApiResponse>();
+                        TestQueryParameterCollectionFormatApiResponse apiResponseLocalVar;
 
-                        TestQueryParameterCollectionFormatApiResponse apiResponseLocalVar = new TestQueryParameterCollectionFormatApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/test-query-parameters", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new TestQueryParameterCollectionFormatApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/test-query-parameters", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterTestQueryParameterCollectionFormatDefaultImplementation(apiResponseLocalVar, context, http, ioutil, pipe, requiredNotNullable, url, notRequiredNotNullable, notRequiredNullable, requiredNullable);
 
@@ -5460,6 +5926,22 @@ namespace Org.OpenAPITools.Api
             /// <param name="requestedAt"></param>
             /// <param name="jsonSerializerOptions"></param>
             public TestQueryParameterCollectionFormatApiResponse(ILogger<TestQueryParameterCollectionFormatApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="TestQueryParameterCollectionFormatApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public TestQueryParameterCollectionFormatApiResponse(ILogger<TestQueryParameterCollectionFormatApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
             {
                 Logger = logger;
                 OnCreated(httpRequestMessage, httpResponseMessage);
@@ -5507,7 +5989,7 @@ namespace Org.OpenAPITools.Api
             bool suppressDefaultLog = false;
             AfterTestStringMapReference(ref suppressDefaultLog, apiResponseLocalVar, requestBody);
             if (!suppressDefaultLog)
-                Logger.LogInformation("{0,-9} | {1} | {3}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
+                Logger.LogInformation("{0,-9} | {1} | {2}", (apiResponseLocalVar.DownloadedAt - apiResponseLocalVar.RequestedAt).TotalSeconds, apiResponseLocalVar.StatusCode, apiResponseLocalVar.Path);
         }
 
         /// <summary>
@@ -5583,10 +6065,12 @@ namespace Org.OpenAPITools.Api
                     uriBuilderLocalVar.Host = HttpClient.BaseAddress.Host;
                     uriBuilderLocalVar.Port = HttpClient.BaseAddress.Port;
                     uriBuilderLocalVar.Scheme = HttpClient.BaseAddress.Scheme;
-                    uriBuilderLocalVar.Path = string.Concat(HttpClient.BaseAddress.AbsolutePath, "/fake/stringMap-reference");
+                    uriBuilderLocalVar.Path = HttpClient.BaseAddress.AbsolutePath == "/"
+                        ? "/fake/stringMap-reference"
+                        : string.Concat(HttpClient.BaseAddress.AbsolutePath.TrimEnd('/'), "/fake/stringMap-reference");
 
-                    httpRequestMessageLocalVar.Content = (requestBody as object) is System.IO.Stream stream
-                        ? httpRequestMessageLocalVar.Content = new StreamContent(stream)
+                    httpRequestMessageLocalVar.Content = (requestBody as object) is Org.OpenAPITools.Client.FileParameter fileParameterLocalVar
+                        ? httpRequestMessageLocalVar.Content = new StreamContent(fileParameterLocalVar.Content)
                         : httpRequestMessageLocalVar.Content = new StringContent(JsonSerializer.Serialize(requestBody, _jsonSerializerOptions));
 
                     httpRequestMessageLocalVar.RequestUri = uriBuilderLocalVar.Uri;
@@ -5606,11 +6090,17 @@ namespace Org.OpenAPITools.Api
 
                     using (HttpResponseMessage httpResponseMessageLocalVar = await HttpClient.SendAsync(httpRequestMessageLocalVar, cancellationToken).ConfigureAwait(false))
                     {
-                        string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
-
                         ILogger<TestStringMapReferenceApiResponse> apiResponseLoggerLocalVar = LoggerFactory.CreateLogger<TestStringMapReferenceApiResponse>();
+                        TestStringMapReferenceApiResponse apiResponseLocalVar;
 
-                        TestStringMapReferenceApiResponse apiResponseLocalVar = new TestStringMapReferenceApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/stringMap-reference", requestedAtLocalVar, _jsonSerializerOptions);
+                        switch ((int)httpResponseMessageLocalVar.StatusCode) {
+                            default: {
+                                string responseContentLocalVar = await httpResponseMessageLocalVar.Content.ReadAsStringAsync().ConfigureAwait(false);
+                                apiResponseLocalVar = new TestStringMapReferenceApiResponse(apiResponseLoggerLocalVar, httpRequestMessageLocalVar, httpResponseMessageLocalVar, responseContentLocalVar, "/fake/stringMap-reference", requestedAtLocalVar, _jsonSerializerOptions);
+
+                                break;
+                            }
+                        }
 
                         AfterTestStringMapReferenceDefaultImplementation(apiResponseLocalVar, requestBody);
 
@@ -5649,6 +6139,22 @@ namespace Org.OpenAPITools.Api
             /// <param name="requestedAt"></param>
             /// <param name="jsonSerializerOptions"></param>
             public TestStringMapReferenceApiResponse(ILogger<TestStringMapReferenceApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, string rawContent, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, rawContent, path, requestedAt, jsonSerializerOptions)
+            {
+                Logger = logger;
+                OnCreated(httpRequestMessage, httpResponseMessage);
+            }
+
+            /// <summary>
+            /// The <see cref="TestStringMapReferenceApiResponse"/>
+            /// </summary>
+            /// <param name="logger"></param>
+            /// <param name="httpRequestMessage"></param>
+            /// <param name="httpResponseMessage"></param>
+            /// <param name="contentStream"></param>
+            /// <param name="path"></param>
+            /// <param name="requestedAt"></param>
+            /// <param name="jsonSerializerOptions"></param>
+            public TestStringMapReferenceApiResponse(ILogger<TestStringMapReferenceApiResponse> logger, System.Net.Http.HttpRequestMessage httpRequestMessage, System.Net.Http.HttpResponseMessage httpResponseMessage, System.IO.Stream contentStream, string path, DateTime requestedAt, System.Text.Json.JsonSerializerOptions jsonSerializerOptions) : base(httpRequestMessage, httpResponseMessage, contentStream, path, requestedAt, jsonSerializerOptions)
             {
                 Logger = logger;
                 OnCreated(httpRequestMessage, httpResponseMessage);

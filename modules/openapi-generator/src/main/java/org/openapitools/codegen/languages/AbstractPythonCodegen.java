@@ -17,6 +17,7 @@
 package org.openapitools.codegen.languages;
 
 import com.github.curiousoddman.rgxgen.RgxGen;
+import io.swagger.v3.core.util.Json;
 import io.swagger.v3.oas.models.examples.Example;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.parameters.Parameter;
@@ -25,6 +26,7 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.openapitools.codegen.*;
 import org.openapitools.codegen.meta.features.SecurityFeature;
+import org.openapitools.codegen.meta.features.DataTypeFeature;
 import org.openapitools.codegen.model.ModelMap;
 import org.openapitools.codegen.model.ModelsMap;
 import org.openapitools.codegen.model.OperationMap;
@@ -40,6 +42,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.openapitools.codegen.CodegenConstants.X_MODIFIERS;
+import static org.openapitools.codegen.CodegenConstants.X_REGEX;
 import static org.openapitools.codegen.utils.StringUtils.*;
 
 
@@ -69,7 +73,9 @@ public abstract class AbstractPythonCodegen extends DefaultCodegen implements Co
                 SecurityFeature.BearerToken,
                 SecurityFeature.ApiKey,
                 SecurityFeature.OAuth2_Implicit
-        )));
+        )).includeDataTypeFeatures(
+                DataTypeFeature.Uuid
+        ));
 
         // from https://docs.python.org/3/reference/lexical_analysis.html#keywords
         setReservedWordsLowerCase(
@@ -106,6 +112,7 @@ public abstract class AbstractPythonCodegen extends DefaultCodegen implements Co
         // TODO file and binary is mapped as `file`
         languageSpecificPrimitives.add("file");
         languageSpecificPrimitives.add("bytes");
+        languageSpecificPrimitives.add("UUID");
 
         typeMapping.clear();
         typeMapping.put("integer", "int");
@@ -127,8 +134,7 @@ public abstract class AbstractPythonCodegen extends DefaultCodegen implements Co
         // mapped to String as a workaround
         typeMapping.put("binary", "str");
         typeMapping.put("ByteArray", "str");
-        // map uuid to string for the time being
-        typeMapping.put("UUID", "str");
+        typeMapping.put("UUID", "UUID");
         typeMapping.put("URI", "str");
         typeMapping.put("null", "none_type");
 
@@ -214,7 +220,7 @@ public abstract class AbstractPythonCodegen extends DefaultCodegen implements Co
                 String defaultValue = String.valueOf(p.getDefault());
                 if (defaultValue != null) {
                     defaultValue = defaultValue.replace("\\", "\\\\")
-                            .replace("'", "\'");
+                            .replace("'", "\\'");
                     if (Pattern.compile("\r\n|\r|\n").matcher(defaultValue).find()) {
                         return "'''" + defaultValue + "'''";
                     } else {
@@ -507,7 +513,7 @@ public abstract class AbstractPythonCodegen extends DefaultCodegen implements Co
 
             // if required and optionals
             List<String> reqs = new ArrayList<>();
-            if (schema.getProperties() != null && !schema.getProperties().isEmpty()) {
+            if (ModelUtils.hasProperties(schema)) {
                 for (Object toAdd : schema.getProperties().keySet()) {
                     reqs.add((String) toAdd);
                 }
@@ -569,7 +575,12 @@ public abstract class AbstractPythonCodegen extends DefaultCodegen implements Co
             type = p.dataType;
         }
 
-        if ("String".equalsIgnoreCase(type) || "str".equalsIgnoreCase(type)) {
+        if (Boolean.TRUE.equals(p.isUuid)) {
+            if (example == null) {
+                example = "38400000-8cf0-11bd-b23e-10b96e4ef00d";
+            }
+            example = "UUID('" + escapeTextInSingleQuotes(example) + "')";
+        } else if ("String".equalsIgnoreCase(type) || "str".equalsIgnoreCase(type)) {
             if (example == null) {
                 example = p.paramName + "_example";
             }
@@ -625,16 +636,104 @@ public abstract class AbstractPythonCodegen extends DefaultCodegen implements Co
 
         if (parameter.getExample() != null) {
             codegenParameter.example = parameter.getExample().toString();
+            codegenParameter.vendorExtensions.put("x-py-example", toPythonLiteral(parameter.getExample()));
         } else if (parameter.getExamples() != null && !parameter.getExamples().isEmpty()) {
             Example example = parameter.getExamples().values().iterator().next();
             if (example.getValue() != null) {
                 codegenParameter.example = example.getValue().toString();
+                codegenParameter.vendorExtensions.put("x-py-example", toPythonLiteral(example.getValue()));
             }
         } else if (schema != null && schema.getExample() != null) {
             codegenParameter.example = schema.getExample().toString();
+            codegenParameter.vendorExtensions.put("x-py-example", toPythonLiteral(schema.getExample()));
         }
 
         setParameterExampleValue(codegenParameter);
+    }
+
+    protected String toPythonExample(CodegenProperty cp) {
+        if (cp == null) {
+            return null;
+        }
+
+        Object example = getSchemaExample(cp.jsonSchema);
+        if (example != null) {
+            return toPythonLiteral(example);
+        }
+
+        return null;
+    }
+
+    protected String toPythonExample(CodegenParameter cp) {
+        if (cp == null) {
+            return null;
+        }
+
+        Object example = getSchemaExample(cp.jsonSchema);
+        if (example != null) {
+            return toPythonLiteral(example);
+        }
+
+        return null;
+    }
+
+    private Object getSchemaExample(String jsonSchema) {
+        if (StringUtils.isEmpty(jsonSchema)) {
+            return null;
+        }
+        try {
+            Map<String, Object> schema = Json.mapper().readValue(jsonSchema, Map.class);
+            Object example = schema.get("example");
+            if (example != null) {
+                return example;
+            }
+            Object examples = schema.get("examples");
+            if (examples instanceof List && !((List<?>) examples).isEmpty()) {
+                return ((List<?>) examples).get(0);
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    protected String toPythonLiteral(Object value) {
+        if (value == null) {
+            return "None";
+        }
+        if (value instanceof String) {
+            return toPythonStringLiteral((String) value);
+        }
+        if (value instanceof Boolean) {
+            return (Boolean) value ? "True" : "False";
+        }
+        if (value instanceof Number) {
+            return value.toString();
+        }
+        if (value instanceof Map) {
+            List<String> entries = new ArrayList<>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                entries.add(toPythonStringLiteral(String.valueOf(entry.getKey())) + ": " + toPythonLiteral(entry.getValue()));
+            }
+            return "{" + StringUtils.join(entries, ", ") + "}";
+        }
+        if (value instanceof Iterable) {
+            List<String> items = new ArrayList<>();
+            for (Object item : (Iterable<?>) value) {
+                items.add(toPythonLiteral(item));
+            }
+            return "[" + StringUtils.join(items, ", ") + "]";
+        }
+
+        return toPythonStringLiteral(String.valueOf(value));
+    }
+
+    protected String toPythonStringLiteral(String value) {
+        try {
+            return Json.mapper().writeValueAsString(value);
+        } catch (Exception e) {
+            return "\"" + escapeUnsafeCharacters(value) + "\"";
+        }
     }
 
     @Override
@@ -669,7 +768,13 @@ public abstract class AbstractPythonCodegen extends DefaultCodegen implements Co
             return getSchemaType(p) + "[str, " + getCollectionItemTypeDeclaration(inner) + "]";
         }
 
-        String openAPIType = getSchemaType(p);
+        String openAPIType = super.getSchemaType(p);
+        
+        if (openAPIType == null) {
+            LOGGER.error("OpenAPI Type for {} is null. Default to UNKNOWN_OPENAPI_TYPE instead.", p.getName());
+            openAPIType = "UNKNOWN_OPENAPI_TYPE";
+        }
+
         if (typeMapping.containsKey(openAPIType)) {
             return typeMapping.get(openAPIType);
         }
@@ -958,8 +1063,10 @@ public abstract class AbstractPythonCodegen extends DefaultCodegen implements Co
                 for (Map<String, Object> enumVars : (List<Map<String, Object>>) model.getAllowableValues().get("enumVars")) {
                     if ((Boolean) enumVars.get("isString")) {
                         model.vendorExtensions.putIfAbsent("x-py-enum-type", "str");
-                        // update `name`, e.g.
-                        enumVars.put("name", toEnumVariableName((String) enumVars.get("value"), "str"));
+                        // Do not overwrite the variable name if already set through x-enum-varnames
+                        if (model.vendorExtensions.get("x-enum-varnames") == null) {
+                            enumVars.put("name", toEnumVariableName((String) enumVars.get("value"), "str"));
+                        }
                     } else {
                         model.vendorExtensions.putIfAbsent("x-py-enum-type", "int");
                         // Do not overwrite the variable name if already set through x-enum-varnames
@@ -1059,6 +1166,8 @@ public abstract class AbstractPythonCodegen extends DefaultCodegen implements Co
     }
 
     public String toEnumVariableName(String name, String datatype) {
+        name = name.replace(".", "_DOT_");
+
         if ("int".equals(datatype)) {
             return "NUMBER_" + name.replace("-", "MINUS_");
         }
@@ -1349,9 +1458,9 @@ public abstract class AbstractPythonCodegen extends DefaultCodegen implements Co
                 }
             }
 
-            vendorExtensions.put("x-regex", regex.replace("\"", "\\\""));
+            vendorExtensions.put(X_REGEX, regex.replace("\"", "\\\""));
             vendorExtensions.put("x-pattern", pattern.replace("\"", "\\\""));
-            vendorExtensions.put("x-modifiers", modifiers);
+            vendorExtensions.put(X_MODIFIERS, modifiers);
         }
     }
 
@@ -2020,7 +2129,8 @@ public abstract class AbstractPythonCodegen extends DefaultCodegen implements Co
         }
 
         private PythonType uuidType(IJsonSchemaValidationProperties cp) {
-            return new PythonType(cp.getDataType());
+            moduleImports.add("uuid", "UUID");
+            return new PythonType("UUID");
         }
 
         private PythonType modelType(IJsonSchemaValidationProperties cp) {
@@ -2043,10 +2153,16 @@ public abstract class AbstractPythonCodegen extends DefaultCodegen implements Co
                 moduleImports.add("pydantic", "field_validator");
             }
 
+            if (cp.getPattern() != null) {
+                moduleImports.add("pydantic", "field_validator");
+            }
+
             if (cp.getIsArray()) {
                 return arrayType(cp);
             } else if (cp.getIsMap() || cp.getIsFreeFormObject()) {
                 return mapType(cp);
+            } else if (cp.getIsUuid()) {
+                return uuidType(cp);
             } else if (cp.getIsString()) {
                 return stringType(cp);
             } else if (cp.getIsNumber() || cp.getIsFloat() || cp.getIsDouble()) {
@@ -2063,8 +2179,6 @@ public abstract class AbstractPythonCodegen extends DefaultCodegen implements Co
                 return anyType(cp);
             } else if (cp.getIsDate() || cp.getIsDateTime()) {
                 return dateType(cp);
-            } else if (cp.getIsUuid()) {
-                return uuidType(cp);
             }
 
             return null;
@@ -2146,10 +2260,10 @@ public abstract class AbstractPythonCodegen extends DefaultCodegen implements Co
                 pt.annotate("alias", cp.baseName);
             }
 
-            /* TODO review as example may break the build
-            if (!StringUtils.isEmpty(cp.getExample())) { // has example
-                fields.add(String.format(Locale.ROOT, "example=%s", cp.getExample()));
-            }*/
+            String example = toPythonExample(cp);
+            if (example != null) {
+                pt.annotate("json_schema_extra", "{\"examples\": [" + example + "]}", false);
+            }
 
             //String defaultValue = null;
             if (!cp.required) { //optional
@@ -2221,11 +2335,6 @@ public abstract class AbstractPythonCodegen extends DefaultCodegen implements Co
             if (!StringUtils.isEmpty(cp.description)) { // has description
                 pt.annotate("description", cp.description);
             }
-
-            /* TODO support example
-            if (!StringUtils.isEmpty(cp.getExample())) { // has example
-                fields.add(String.format(Locale.ROOT, "example=%s", cp.getExample()));
-            }*/
 
             //return pt.asTypeConstraint(moduleImports);
             return pt.asTypeConstraintWithAnnotations(moduleImports);

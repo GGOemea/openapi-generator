@@ -547,13 +547,15 @@ public abstract class AbstractGoCodegen extends DefaultCodegen implements Codege
             }
             for (CodegenParameter param : operation.allParams) {
                 // import "os" if the operation uses files
-                if (!addedOSImport && "*os.File".equals(param.dataType)) {
+                if (!addedOSImport && ("*os.File".equals(param.dataType) ||
+                        (param.items != null && "*os.File".equals(param.items.dataType)))) {
                     imports.add(createMapping("import", "os"));
                     addedOSImport = true;
                 }
 
                 // import "time" if the operation has a time parameter.
-                if (!addedTimeImport && "time.Time".equals(param.dataType)) {
+                if (!addedTimeImport && ("time.Time".equals(param.dataType) ||
+                        (param.items != null && "time.Time".equals(param.items.dataType)))) {
                     imports.add(createMapping("import", "time"));
                     addedTimeImport = true;
                 }
@@ -648,13 +650,15 @@ public abstract class AbstractGoCodegen extends DefaultCodegen implements Codege
             }
             for (CodegenParameter param : operation.allParams) {
                 // import "os" if the operation uses files
-                if (!addedOSImport && "*os.File".equals(param.dataType)) {
+                if (!addedOSImport && ("*os.File".equals(param.dataType) ||
+                        (param.items != null && "*os.File".equals(param.items.dataType)))) {
                     imports.add(createMapping("import", "os"));
                     addedOSImport = true;
                 }
 
                 // import "time" if the operation has a time parameter.
-                if (!addedTimeImport && "time.Time".equals(param.dataType)) {
+                if (!addedTimeImport && ("time.Time".equals(param.dataType) ||
+                        (param.items != null && "time.Time".equals(param.items.dataType)))) {
                     imports.add(createMapping("import", "time"));
                     addedTimeImport = true;
                 }
@@ -800,6 +804,9 @@ public abstract class AbstractGoCodegen extends DefaultCodegen implements Codege
 
                 if (withXml) {
                     goDataTag += " xml:" + "\"" + cp.baseName;
+                    if (cp.isXmlWrapped) {
+                        goDataTag += ">" + ("".equals(cp.xmlName) ? cp.baseName : cp.xmlName);
+                    }
                     if (cp.isXmlAttribute) {
                         goDataTag += ",attr";
                     }
@@ -885,6 +892,18 @@ public abstract class AbstractGoCodegen extends DefaultCodegen implements Codege
         return input.replace("\"", "");
     }
 
+    /**
+     * checks if the data should be classified as "string" in enum
+     * In the future, we may rename this function to "isEnumString"
+     *
+     * @param dataType data type
+     * @return true if it's a enum string
+     */
+    @Override
+    public boolean isDataTypeString(String dataType) {
+        return "string".equalsIgnoreCase(dataType);
+    }
+
     @Override
     public String escapeUnsafeCharacters(String input) {
         return input.replace("*/", "*_/").replace("/*", "/_*");
@@ -900,6 +919,8 @@ public abstract class AbstractGoCodegen extends DefaultCodegen implements Codege
     @Override
     public String toEnumValue(String value, String datatype) {
         if (isNumberType(datatype) || "bool".equals(datatype)) {
+            return value;
+        } else if (isDataTypeString(datatype) && value.indexOf("\"") == 0 && value.lastIndexOf("\"") == value.length() - 1) {
             return value;
         } else {
             return "\"" + escapeText(value) + "\"";

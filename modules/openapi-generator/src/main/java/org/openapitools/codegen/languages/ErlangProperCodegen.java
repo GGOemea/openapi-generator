@@ -41,6 +41,9 @@ import java.util.regex.Pattern;
 import static org.openapitools.codegen.utils.StringUtils.camelize;
 import static org.openapitools.codegen.utils.StringUtils.underscore;
 
+/**
+ * <p>Mustache templates are located in {@code src/main/resources/erlang-proper/}.
+ */
 public class ErlangProperCodegen extends DefaultCodegen implements CodegenConfig {
     private final Logger LOGGER = LoggerFactory.getLogger(ErlangProperCodegen.class);
 
@@ -507,7 +510,6 @@ public class ErlangProperCodegen extends DefaultCodegen implements CodegenConfig
             this.hasAuthMethods = o.hasAuthMethods;
             this.hasConsumes = o.hasConsumes;
             this.hasProduces = o.hasProduces;
-            this.hasParams = o.hasParams;
             this.hasOptionalParams = o.hasOptionalParams;
             this.returnTypeIsPrimitive = o.returnTypeIsPrimitive;
             this.returnSimpleType = o.returnSimpleType;
@@ -517,12 +519,6 @@ public class ErlangProperCodegen extends DefaultCodegen implements CodegenConfig
             this.isMultipart = o.isMultipart;
             this.isResponseBinary = o.isResponseBinary;
             this.hasReference = o.hasReference;
-            this.isRestfulIndex = o.isRestfulIndex;
-            this.isRestfulShow = o.isRestfulShow;
-            this.isRestfulCreate = o.isRestfulCreate;
-            this.isRestfulUpdate = o.isRestfulUpdate;
-            this.isRestfulDestroy = o.isRestfulDestroy;
-            this.isRestful = o.isRestful;
             this.path = o.path;
             this.operationId = o.operationId;
             this.returnType = o.returnType;

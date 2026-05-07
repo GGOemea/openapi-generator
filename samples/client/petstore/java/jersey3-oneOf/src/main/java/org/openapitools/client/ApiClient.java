@@ -62,6 +62,7 @@ import java.util.List;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.time.OffsetDateTime;
@@ -83,15 +84,15 @@ import org.openapitools.client.auth.ApiKeyAuth;
 /**
  * <p>ApiClient class.</p>
  */
-@jakarta.annotation.Generated(value = "org.openapitools.codegen.languages.JavaClientCodegen", comments = "Generator version: 7.13.0-SNAPSHOT")
+@jakarta.annotation.Generated(value = "org.openapitools.codegen.languages.JavaClientCodegen", comments = "Generator version: 7.23.0-SNAPSHOT")
 public class ApiClient extends JavaTimeFormatter {
-  private static final Pattern JSON_MIME_PATTERN = Pattern.compile("(?i)^(application/json|[^;/ \t]+/[^;/ \t]+[+]json)[ \t]*(;.*)?$");
+  protected static final Pattern JSON_MIME_PATTERN = Pattern.compile("(?i)^(application/json|[^;/ \t]+/[^;/ \t]+[+]json)[ \t]*(;.*)?$");
 
   protected Map<String, String> defaultHeaderMap = new HashMap<>();
   protected Map<String, String> defaultCookieMap = new HashMap<>();
   protected String basePath = "http://localhost";
   protected String userAgent;
-  private static final Logger log = Logger.getLogger(ApiClient.class.getName());
+  protected static final Logger log = Logger.getLogger(ApiClient.class.getName());
 
   protected List<ServerConfiguration> servers = new ArrayList<>(Arrays.asList(
           new ServerConfiguration(
@@ -108,7 +109,7 @@ public class ApiClient extends JavaTimeFormatter {
   protected boolean debugging = false;
   protected ClientConfig clientConfig;
   protected int connectionTimeout = 0;
-  private int readTimeout = 0;
+  protected int readTimeout = 0;
 
   protected Client httpClient;
   protected JSON json;
@@ -262,7 +263,7 @@ public class ApiClient extends JavaTimeFormatter {
     return this;
   }
 
-  private void updateBasePath() {
+  protected void updateBasePath() {
     if (serverIndex != null) {
         setBasePath(servers.get(serverIndex).URL(serverVariables));
     }
@@ -473,6 +474,7 @@ public class ApiClient extends JavaTimeFormatter {
    */
   public ApiClient setDebugging(boolean debugging) {
     this.debugging = debugging;
+    applyDebugSetting(this.clientConfig);
     // Rebuild HTTP Client according to the new "debugging" value.
     this.httpClient = buildHttpClient();
     return this;
@@ -807,7 +809,7 @@ public class ApiClient extends JavaTimeFormatter {
    * @param key Key of the object
    * @param multiPart MultiPart to add the form param to
    */
-  private void addParamToMultipart(Object value, String key, MultiPart multiPart) {
+  protected void addParamToMultipart(Object value, String key, MultiPart multiPart) {
     if (value instanceof File) {
       File file = (File) value;
       FormDataContentDisposition contentDisp = FormDataContentDisposition.name(key)
@@ -973,6 +975,7 @@ public class ApiClient extends JavaTimeFormatter {
    * @param authNames The authentications to apply
    * @param returnType The return type into which to deserialize the response
    * @param isBodyNullable True if the body is nullable
+   * @param errorTypes Mapping of error codes to types into which to deserialize the response
    * @return The response body in type of string
    * @throws ApiException API exception
    */
@@ -989,7 +992,9 @@ public class ApiClient extends JavaTimeFormatter {
       String contentType,
       String[] authNames,
       GenericType<T> returnType,
-      boolean isBodyNullable)
+      boolean isBodyNullable,
+      Map<String, GenericType> errorTypes
+      )
       throws ApiException {
 
     String targetURL;
@@ -1000,6 +1005,7 @@ public class ApiClient extends JavaTimeFormatter {
       if (index < 0 || index >= serverConfigurations.size()) {
         throw new ArrayIndexOutOfBoundsException(
             String.format(
+                Locale.ROOT,
                 "Invalid index %d when selecting the host settings. Must be less than %d",
                 index, serverConfigurations.size()));
       }
@@ -1010,6 +1016,22 @@ public class ApiClient extends JavaTimeFormatter {
     // Not using `.target(targetURL).path(path)` below,
     // to support (constant) query string in `path`, e.g. "/posts?draft=1"
     WebTarget target = httpClient.target(targetURL);
+
+    // put all headers in one place
+    Map<String, String> allHeaderParams = new HashMap<>(defaultHeaderMap);
+    allHeaderParams.putAll(headerParams);
+
+    if (authNames != null) {
+      // update different parameters (e.g. headers) for authentication
+      updateParamsForAuth(
+          authNames,
+          queryParams,
+          allHeaderParams,
+          cookieParams,
+          null,
+          method,
+          target.getUri());
+    }
 
     if (queryParams != null) {
       for (Pair queryParam : queryParams) {
@@ -1041,22 +1063,6 @@ public class ApiClient extends JavaTimeFormatter {
 
     Entity<?> entity = serialize(body, formParams, contentType, isBodyNullable);
 
-    // put all headers in one place
-    Map<String, String> allHeaderParams = new HashMap<>(defaultHeaderMap);
-    allHeaderParams.putAll(headerParams);
-
-    if (authNames != null) {
-      // update different parameters (e.g. headers) for authentication
-      updateParamsForAuth(
-          authNames,
-          queryParams,
-          allHeaderParams,
-          cookieParams,
-          null,
-          method,
-          target.getUri());
-    }
-
     for (Entry<String, String> entry : allHeaderParams.entrySet()) {
       String value = entry.getValue();
       if (value != null) {
@@ -1086,6 +1092,8 @@ public class ApiClient extends JavaTimeFormatter {
         String respBody = null;
         if (response.hasEntity()) {
           try {
+            // call bufferEntity, so that a subsequent call to `readEntity` in `deserialize` doesn't fail
+            response.bufferEntity();
             respBody = String.valueOf(response.readEntity(String.class));
             message = respBody;
           } catch (RuntimeException e) {
@@ -1093,7 +1101,7 @@ public class ApiClient extends JavaTimeFormatter {
           }
         }
         throw new ApiException(
-            response.getStatus(), message, buildResponseHeaders(response), respBody);
+            response.getStatus(), message, buildResponseHeaders(response), respBody, deserializeErrorEntity(errorTypes, response));
       }
     } finally {
       try {
@@ -1104,8 +1112,32 @@ public class ApiClient extends JavaTimeFormatter {
       }
     }
   }
+  
+  /**
+   * Deserialize the response body into an error entity based on HTTP status code.
+   * Looks up the error type from the errorTypes map using the response status code,
+   * or falls back to the "default" error type if no match is found.
+   *
+   * @param errorTypes Map of status code strings to GenericType for deserialization
+   * @param response The HTTP response
+   * @return The deserialized error entity, or null if not found or deserialization fails
+   */
+  private Object deserializeErrorEntity(Map<String, GenericType> errorTypes, Response response) {
+    if (errorTypes == null) {
+      return null;
+    }
+    GenericType errorType = errorTypes.get(String.valueOf(response.getStatus()));
+    if (errorType == null) {
+        errorType = errorTypes.get("0"); // "0" is the "default" response
+    }
+    try {
+      return deserialize(response, errorType);
+    } catch (Exception e) {
+      return null;
+    }
+  }
 
-  private Response sendRequest(String method, Invocation.Builder invocationBuilder, Entity<?> entity) {
+  protected Response sendRequest(String method, Invocation.Builder invocationBuilder, Entity<?> entity) {
     Response response;
     if ("POST".equals(method)) {
       response = invocationBuilder.post(entity);
@@ -1130,7 +1162,7 @@ public class ApiClient extends JavaTimeFormatter {
    */
   @Deprecated
   public <T> ApiResponse<T> invokeAPI(String path, String method, List<Pair> queryParams, Object body, Map<String, String> headerParams, Map<String, String> cookieParams, Map<String, Object> formParams, String accept, String contentType, String[] authNames, GenericType<T> returnType, boolean isBodyNullable) throws ApiException {
-    return invokeAPI(null, path, method, queryParams, body, headerParams, cookieParams, formParams, accept, contentType, authNames, returnType, isBodyNullable);
+    return invokeAPI(null, path, method, queryParams, body, headerParams, cookieParams, formParams, accept, contentType, authNames, returnType, isBodyNullable, null/*TODO SME manage*/);
   }
 
   /**
@@ -1139,8 +1171,10 @@ public class ApiClient extends JavaTimeFormatter {
    * @return Client
    */
   protected Client buildHttpClient() {
-    // recreate the client config to pickup changes
-    clientConfig = getDefaultClientConfig();
+    // Create ClientConfig if it has not been initialized yet
+    if (clientConfig == null) {
+      clientConfig = getDefaultClientConfig();
+    }
 
     ClientBuilder clientBuilder = ClientBuilder.newBuilder();
     clientBuilder = clientBuilder.withConfig(clientConfig);
@@ -1161,6 +1195,11 @@ public class ApiClient extends JavaTimeFormatter {
     clientConfig.property(HttpUrlConnectorProvider.SET_METHOD_WORKAROUND, true);
     // turn off compliance validation to be able to send payloads with DELETE calls
     clientConfig.property(ClientProperties.SUPPRESS_HTTP_COMPLIANCE_VALIDATION, true);
+    applyDebugSetting(clientConfig);
+    return clientConfig;
+  }
+
+  protected void applyDebugSetting(ClientConfig clientConfig) {
     if (debugging) {
       clientConfig.register(new LoggingFeature(java.util.logging.Logger.getLogger(LoggingFeature.DEFAULT_LOGGER_NAME), java.util.logging.Level.INFO, LoggingFeature.Verbosity.PAYLOAD_ANY, 1024*50 /* Log payloads up to 50K */));
       clientConfig.property(LoggingFeature.LOGGING_FEATURE_VERBOSITY, LoggingFeature.Verbosity.PAYLOAD_ANY);
@@ -1170,8 +1209,6 @@ public class ApiClient extends JavaTimeFormatter {
       // suppress warnings for payloads with DELETE calls:
       java.util.logging.Logger.getLogger("org.glassfish.jersey.client").setLevel(java.util.logging.Level.SEVERE);
     }
-
-    return clientConfig;
   }
 
   /**
